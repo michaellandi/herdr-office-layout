@@ -33,6 +33,7 @@ export const STATUS = {
   idle: { label: "IDLE", fg: "#8b97aa" },
   done: { label: "DONE", fg: "#4fd6e8" },
   unsure: { label: "UNSURE", fg: "#c48bff" },
+  shell: { label: "SHELL", fg: "#9fb4c8" },
 };
 
 export const statusOf = (name) => STATUS[name] || STATUS.unsure;
@@ -40,6 +41,7 @@ export const statusOf = (name) => STATUS[name] || STATUS.unsure;
 // Punch-clock bucket. The ported clock still says "unknown" for the shelf.
 export function clockStatus(status) {
   if (status === "unsure") return "unknown";
+  if (status === "shell") return "idle";
   if (status === "working" || status === "blocked" || status === "idle" || status === "done" || status === "unknown") {
     return status;
   }
@@ -47,6 +49,6 @@ export function clockStatus(status) {
 }
 
 export function officeStatus(status) {
-  if (status === "working" || status === "blocked" || status === "idle" || status === "done") return status;
+  if (status === "working" || status === "blocked" || status === "idle" || status === "done" || status === "shell") return status;
   return "unsure";
 }

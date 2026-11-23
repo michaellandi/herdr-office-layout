@@ -8,7 +8,7 @@ import { assignCasts, CAST } from "../mods/office/identity.js";
 import { assignSeats } from "../mods/office/seats.js";
 import { assignRooms } from "../mods/office/rooms.js";
 import { layoutFloor } from "../mods/office/place.js";
-import { deliver, answerText, keyText } from "../mods/office/send.js";
+import { deliver, deliverKeys, answerText, keyList, stillSameMenu } from "../mods/office/send.js";
 import { dirBase } from "../mods/office/text.js";
 import { matches } from "../mods/office/filter.js";
 import { STATUS } from "../mods/office/theme.js";
@@ -109,20 +109,21 @@ const scene = layoutFloor({
   }],
 });
 const desk = scene.rugs[0].desks.find((item) => item.address === "w");
-assert.ok(scene.spots.w.x >= desk.x && scene.spots.w.x < desk.x + desk.w);
+assert.equal(scene.spots.w.where, "desk");
+assert.ok(scene.spots.w.x < desk.x && scene.spots.w.y <= desk.y);
 assert.ok(scene.spots.b.y > desk.y);
 assert.ok(scene.spots.i.x < scene.lounge.x + scene.lounge.w);
 assert.equal(scene.spots.b.pose, "hand");
 assert.equal(scene.spots.i.pose, "doze");
 assert.equal(scene.spots.u.where, "shelf");
-assert.equal(scene.spots.d.where, "board");
+assert.equal(scene.spots.d.where, "lounge");
 assert.equal(scene.rugs[0].seat.space, "s");
 
-assert.equal(keyText("y"), "y");
-assert.equal(keyText("n"), "n");
-assert.equal(keyText("Y"), "Y");
-assert.equal(keyText("s"), null);
-assert.equal(keyText("enter"), null);
+assert.deepEqual(keyList(["down", "down", "enter"]), ["down", "down", "enter"]);
+assert.deepEqual(keyList(["1"]), ["1"]);
+assert.equal(keyList(["ctrl+c"]), null);
+assert.equal(keyList([]), null);
+assert.equal(keyList(["y", "rm -rf"]), null);
 assert.equal(answerText("  please rerun the login spec  "), "please rerun the login spec\n");
 assert.equal(answerText("\u001b[A"), null);
 
@@ -139,8 +140,28 @@ const sent = await deliver(hc, "t3", "y", true);
 assert.equal(sent.ok, true);
 assert.equal(calls, 1);
 
+const keyed = [];
+const hcKeys = async (argv) => { keyed.push(argv); return { code: 0 }; };
+assert.equal((await deliverKeys(hcKeys, "t4", ["1"], false)).skipped, true);
+assert.equal((await deliverKeys(hcKeys, "t4", ["ctrl+c"], true)).skipped, true);
+assert.equal((await deliverKeys(hcKeys, "t4", ["down", "enter"], true)).ok, true);
+assert.deepEqual(keyed, [["keys", "t4", "down", "enter"]]);
+assert.equal(stillSameMenu({ menu: ["Allow", "Deny"] }, { menu: ["Allow", "Deny"], approve: ["enter"] }).approve[0], "enter");
+assert.equal(stillSameMenu({ menu: ["Allow", "Deny"] }, { menu: ["Deny", "Allow"] }), null);
+assert.equal(stillSameMenu({ approve: ["y"] }, null).approve[0], "y");
+
 const person = { name: "Ada", programName: "Codex", tabName: "flaky-login", spaceName: "harbor", status: "blocked", branch: "fix/flaky", dir: "harbor-web", model: "codex" };
 assert.equal(matches(person, "flaky needs", "blocked"), true);
 assert.equal(matches(person, "flaky", "idle"), false);
 
-console.log("logic ok");
+// Plain terminals get a desk as "shell"; an agent in the same terminal wins.
+import("../mods/office/people.js").then(({ withShells }) => {
+  const sp = [{ id: "s1", name: "harbor", tabs: [{ id: "tb1", index: 1, name: "api" }, { id: "tb2", index: 2, name: "web" }] }];
+  const pn = [{ pane: "p1", terminal: "t1", tab: "tb1" }, { pane: "p2", terminal: "t2", tab: "tb2" }, { pane: "p3", terminal: null, tab: "tb2", mod: "x" }];
+  const got = withShells([{ address: "t1", space: "s1", tab: "tb1", status: "working" }], pn, sp);
+  assert.equal(got.length, 2);
+  assert.equal(got[1].address, "t2");
+  assert.equal(got[1].status, "shell");
+  assert.equal(got[1].tab_name, "web");
+  console.log("logic ok");
+});

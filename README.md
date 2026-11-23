@@ -1,12 +1,18 @@
 # Herdr Office
 
+[![check](https://github.com/michaellandi/herdr-office-layout/actions/workflows/check.yml/badge.svg)](https://github.com/michaellandi/herdr-office-layout/actions/workflows/check.yml)
+
 A [Herdr](https://herdr.dev) layout that draws your agents as blob people in one open-plan office. Working agents sit behind their desk and type. Idle and finished ones go to the lounge, where they nap, drink coffee, read, check their phone and make small talk. Someone who needs you walks to the front of the room, raises a hand and says what they are stuck on. Helpers an agent starts with `hc run` stand in front of its desk. Click anyone for their card.
 
 This is a native GUI port of [Michael Landi's herdr-office](https://github.com/michaellandi/herdr-office) TUI plugin. The floor is a Herdr mod (QuickJS + GPUI), not a terminal pane and not a web view.
 
-![Herdr Office](preview.png)
+![The office floor: desks, the lounge, a helper, and an agent who needs you](docs/floor.png)
 
-`preview.png` is a **design mockup** of the window drawn from the same blob art the mod uses, not a screenshot of a live session. For a real look without exposing your own terminals, use the demo layout (see [Demo floor](#demo-floor)).
+![An agent's card while it waits on an approval](docs/approval-card.png)
+
+Both screenshots are the [demo floor](#demo-floor): made-up agents, folders and questions, taken in a separate Herdr home so no real terminal is in them. `preview.png` is the original design mockup.
+
+Prefer the terminal? [herdr-office](https://github.com/michaellandi/herdr-office) is the original: the same office as a Herdr TUI plugin, drawn in a pane with `herdr plugin install michaellandi/herdr-office`.
 
 ## Install
 

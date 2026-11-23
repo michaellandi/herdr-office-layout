@@ -1,4 +1,5 @@
 import { View, div } from "gpui-kit";
+import { K } from "./scale.js";
 import { InputState } from "gpui-base";
 import { agents, spaces, panes, terminals, demoOn, DEMO_READS } from "./source.js";
 import {
@@ -459,7 +460,8 @@ export default class Office extends View {
     if (!this.drag) return;
     const x = e?.position?.x;
     if (!Number.isFinite(x)) return;
-    const w = Math.round(this.drag.w + (x - this.drag.x));
+    // The pointer moves in real pixels; the lounge width is in unscaled units.
+    const w = Math.round(this.drag.w + (x - this.drag.x) / K);
     if (w !== this.loungeW) {
       this.loungeW = w;
       this.dragged = true;

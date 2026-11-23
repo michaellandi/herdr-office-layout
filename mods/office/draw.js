@@ -1,3 +1,5 @@
+// First: scales this mod's builders (see scale.js).
+import { K } from "./scale.js";
 import { div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, Input } from "gpui-base";
 import { run, shared, setShared, window as osWindow } from "herdr";
@@ -550,7 +552,8 @@ function wideKey(id, label, color, action) {
 }
 
 export function drawFloor(model, view) {
-  const scene = layoutFloor({ width: view.width, height: view.height, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats });
+  // Layout works in unscaled units; the builders scale everything by K.
+  const scene = layoutFloor({ width: view.width / K, height: view.height / K, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats });
   // At least the pane's height (min_h_full) and at least the content's, so
   // the bottom-anchored lounge, couch and rugs always have a real bottom.
   const world = div().id("office-world").relative().w_full().min_h_full().h(scene.contentH)

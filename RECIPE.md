@@ -4,7 +4,7 @@ Your agents as blob people in one open-plan office, above the live tab. Working 
 
 ![Herdr Office](preview.png)
 
-This file is the brief: enough to build the office from an empty folder. The files next to it are one build of it, which has grown past the brief (helpers, lounge activities, the approval reader, the demo floor); the README describes that build. `preview.png` is a design mockup of that window, not a capture of a running Herdr.
+This file is the brief: enough to build the office from an empty folder. The files next to it are one build of it, which has grown past the brief (helpers, lounge activities, the approval reader, the demo floor); the README describes that build. `preview.png` is a capture of that window on the demo floor (made-up agents).
 
 ## What you see
 

@@ -12,6 +12,8 @@ This is a native GUI port of [Michael Landi's herdr-office](https://github.com/m
 
 Both screenshots are the [demo floor](#demo-floor): made-up agents, folders and questions, taken in a separate Herdr home so no real terminal is in them. `preview.png` is the original design mockup.
 
+Prefer the terminal? [herdr-office](https://github.com/michaellandi/herdr-office) is the original: the same office as a Herdr TUI plugin, drawn in a pane with `herdr plugin install michaellandi/herdr-office`.
+
 ## Install
 
 Copy the layouts and both mods into the Herdr app home (`~/.config/herdr-app`, or `$HERDR_APP_HOME` if that is set).

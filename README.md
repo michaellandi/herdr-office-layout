@@ -10,7 +10,7 @@ This is a native GUI port of [Michael Landi's herdr-office](https://github.com/m
 
 ![An agent's card while it waits on an approval](docs/approval-card.png)
 
-Both screenshots are the [demo floor](#demo-floor): made-up agents, folders and questions, taken in a separate Herdr home so no real terminal is in them. `preview.png` is the original design mockup.
+Both screenshots are the [demo floor](#demo-floor): made-up agents, folders and questions, taken in a separate Herdr home so no real terminal is in them. `preview.png` (the image herdr.dev/layouts shows) is the same floor shot.
 
 Prefer the terminal? [herdr-office](https://github.com/michaellandi/herdr-office) is the original: the same office as a Herdr TUI plugin, drawn in a pane with `herdr plugin install michaellandi/herdr-office`.
 

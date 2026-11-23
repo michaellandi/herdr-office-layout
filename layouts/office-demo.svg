@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">
+  <rect width="320" height="180" fill="#12161d"/>
+  <rect x="0" y="0" width="320" height="22" fill="#161b24"/>
+  <text x="10" y="15" fill="#e7eef8" font-size="9" font-family="sans-serif">HERDR OFFICE</text>
+  <rect x="8" y="28" width="64" height="78" rx="8" fill="#222838"/>
+  <rect x="80" y="28" width="150" height="78" rx="8" fill="#243044"/>
+  <rect x="238" y="28" width="74" height="78" rx="8" fill="#2c2838"/>
+  <circle cx="28" cy="70" r="8" fill="#C5D48A"/>
+  <circle cx="110" cy="62" r="8" fill="#F3B7C4"/>
+  <circle cx="150" cy="62" r="8" fill="#D0925C"/>
+  <circle cx="190" cy="86" r="8" fill="#F0A9C8"/>
+  <circle cx="262" cy="70" r="8" fill="#A9B4EA"/>
+  <rect x="0" y="112" width="320" height="16" fill="#161b24"/>
+  <rect x="8" y="136" width="148" height="36" rx="4" fill="#10141b" stroke="#e0a15a"/>
+  <rect x="164" y="136" width="148" height="36" rx="4" fill="#10141b" stroke="#2c3548"/>
+</svg>

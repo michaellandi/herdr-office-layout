@@ -1,16 +1,16 @@
 # Herdr Office
 
-A [Herdr](https://herdr.dev) layout that draws your agents as blob people in one open-plan office. Working agents sit at a fixed home desk. Idle ones drift to the couch or the coffee machine. Done ones stand by the shipped board. Someone who needs you walks to the front and raises a hand. Click a person and Herdr focuses their terminal.
+A [Herdr](https://herdr.dev) layout that draws your agents as blob people in one open-plan office. Working agents sit behind their desk and type. Idle and finished ones go to the lounge, where they nap, drink coffee, read, check their phone and make small talk. Someone who needs you walks to the front of the room, raises a hand and says what they are stuck on. Helpers an agent starts with `hc run` stand in front of its desk. Click anyone for their card.
 
 This is a native GUI port of [Michael Landi's herdr-office](https://github.com/michaellandi/herdr-office) TUI plugin. The floor is a Herdr mod (QuickJS + GPUI), not a terminal pane and not a web view.
 
 ![Herdr Office](preview.png)
 
-`preview.png` is a **design mockup** of the target window, drawn from the same blob art the mod uses. It is not a screenshot of a live Herdr session.
+`preview.png` is a **design mockup** of the window drawn from the same blob art the mod uses, not a screenshot of a live session. For a real look without exposing your own terminals, use the demo layout (see [Demo floor](#demo-floor)).
 
 ## Install
 
-Copy the layout and the mod into the Herdr app home (`~/.config/herdr-app`, or `$HERDR_APP_HOME` if that is set). Leave this README and the preview out.
+Copy the layouts and both mods into the Herdr app home (`~/.config/herdr-app`, or `$HERDR_APP_HOME` if that is set).
 
 ```sh
 git clone https://github.com/michaellandi/herdr-office-layout.git
@@ -18,89 +18,119 @@ cd herdr-office-layout
 home="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
 mkdir -p "$home/layouts" "$home/mods"
 cp layouts/office.json layouts/office.svg "$home/layouts/"
-cp -R mods/office "$home/mods/office"
+cp -R mods/office mods/office-peek "$home/mods/"
 herdr-app check "$home/mods/office"
+herdr-app check "$home/mods/office-peek"
 herdr-app do layout.switch '{"name":"office"}'
 ```
 
-Switch back to your usual layout with Ctrl+Shift+L, or `herdr-app do layout.switch '{"name":"main"}'`.
+Switch back with Ctrl+Shift+L, or `herdr-app do layout.switch '{"name":"main"}'`. Deleting the two layout files and the two mod folders removes it. Herdr's own layouts and mods are not modified.
 
-Deleting `layouts/office.json`, `layouts/office.svg` and `mods/office` removes it. Herdr's own layouts are not modified.
+`mods/office-peek` is a clone of Herdr's `peek` mod (made with `mod.clone`) whose button reads "Promote to desk" instead of "keep". The office opens it when you peek at a helper.
 
-## What you can do
+## The floor
 
-- The header counts desks, needs-you, working, done, idle and unsure. Click a count to filter the floor. Space chips switch space.
-- The punch-clock chip is how today's open office has spent its time (work, waiting, idle, done). It starts when this layout is shown and is remembered for the local day.
-- Each agent keeps a home desk on a rug tinted by space. The rug label is the space name. An empty seat on each rug hires into that space.
-- Click a blob, or their empty desk, to focus that agent (`agent.focus`). Hover pins the detail card. The card shows status, how long, tab, space, the directory's last segment, branch, uncommitted counts, and a context percent when the status line has one.
-- **+ Hire** lists agents from `knownAgents()` and starts one with `tab.new`.
-- The rail filters by name, program, tab, space, status, branch or directory name. Standup lists who is idle.
-- Pane headers show the program, status, branch, directory name, uncommitted count and context percent, and split / zoom / close on hover.
-- Moves use GPUI `.transition` on position. Idle bobbing, the raised-hand bounce and the coffee steam use `.loop`. Nothing animates by redrawing on a fast timer.
+- **Desks.** Every agent keeps a home desk on a rug tinted by its space; the rug label is the space name. A working agent sits behind the desk with hands on the keyboard. The monitor shows what it is running (`npm test`, `git rebase`) with a moving bar, scrolling code lines when the command is not known, `APPROVE?` while it needs you, and a starfield screensaver while it is idle. A plain terminal with no agent in it gets a desk too, with a `$` prompt on the monitor. Each desk has two props (mug, plant, frame, rubber duck, lamp, books) that stay with it.
+- **Name tags.** The name sits in a tag whose border is the status color, with the tab name under it. The desk whose terminal has the keyboard is framed in Herdr's focus color; other desks on screen in a split tab get a faint outline.
+- **Lounge.** Idle and done agents sit on the couch. Seats stick: nobody shuffles when someone leaves. Each lounger naps, drinks coffee, reads or checks their phone, changing every few minutes, and pairs on the couch trade a few lines in speech bubbles now and then. Drag the lounge's right edge to resize it; the width is remembered.
+- **Needs you.** A blocked agent stands at the front of the room with a waving arm and a bubble with their question.
+- **Helpers.** Terminals another terminal started with `hc run` (sub-agents) stand in front of their parent's desk, up to three, each labelled with the name it was started with (`hc run --name lint`), else its command. Busy ones bob, a blocked one shows `!`, idle ones doze. More than three show as `+N`.
 
-## Sending keystrokes
+Moves use GPUI `.transition`; bobbing, typing, steam and screens use `.loop` and `.frames`. Nothing animates by redrawing on a fast timer.
 
-**Off by default.** The floor block in `layouts/office.json` sets `"send": false`. While that is false, y / n / s / Y only focus the agent. The bubble says "focus only". Standup will not type.
+## Cards
 
-Turn it on only after you have watched it against a real agent:
+Click a person or a desk to open their card; click empty floor (or anywhere outside the card) to close it. The card shows status and for how long, time on shift, tab (with **Rename**), branch, uncommitted counts, context percent and model when the status line has one.
 
-```json
-"content": { "mod": "office", "props": { "send": false } }
-```
+For a blocked agent it adds what they are stuck on, the tool call it is about (for example `Shell npm test -- --run login.spec.ts`), and buttons:
 
-Change `false` to `true` and save. Herdr reloads the mod.
+| Key | Button | Does |
+| --- | --- | --- |
+| Y | Y | approve |
+| N | N | deny |
+| S | S words | answer in words (a text field, then **Send words**) |
+| Shift-A | A always | "yes, and don't ask again", only when the menu offers it; press twice to confirm |
+| Esc | × | close the card |
 
-| Control | What it sends |
-| --- | --- |
-| y | the single character `y` |
-| n | the single character `n` |
-| Y | the single character `Y` |
-| s | opens a text field; submit sends that text plus a newline |
+Clicking someone who needs you keeps the keyboard on the card, so a bare Y or N answers them. The line under the buttons says exactly which keys each one sends.
 
-These are literal `hc send` writes. They do **not** read the prompt and walk a menu the way the TUI plugin does. An agent whose approval UI is a numbered menu or a cursor list will not get the right keys. That is why the switch ships off.
+A card lists its agent's helpers (name, command, status, how long). Click one to drill into its own card (← goes back), with **Peek at terminal**, **Promote to desk** (gives it its own tab, and so its own desk) and **End** (stops and removes it, after a confirm).
 
-Standup, when sending is on, types the same line into up to 12 idle terminals.
+## Header and rail
+
+- The header counts desks, need you, working, done, idle and unsure; click a count to filter the floor. The space button opens a list of spaces with their shortcuts. The punch-clock chip is how today has been spent (work, waiting, idle, done) since the layout was shown.
+- The rail has the filter (name, program, tab, space, status, branch or directory name), **+ Hire**, **Standup**, the current notice, and the desk count.
+- **+ Hire** starts a new tab: a plain **Terminal** (so you pick the directory), or any installed agent. An optional tab name field names it. The agent list is cached, so the dialog opens at once.
+- The boundary between the floor and the panes below can be dragged.
+
+## Answering for you
+
+**Off by default.** The floor block in `layouts/office.json` sets `"send": false`. While it is false, the answer buttons and keys only focus the agent. Set it to `true` and save; Herdr reloads the mod.
+
+The keys are read off the agent's screen the way herdr-office reads them (`mods/office/ask.js`, ported from its `src/summary.mjs`, with its tests):
+
+| Prompt shape | Y sends | N sends |
+| --- | --- | --- |
+| `(y/n)` / `[y/n]` | `y` | `n` |
+| numbered menu, 1 is a yes | `1` | `esc` |
+| cursor menu (`❯ Yes` / `No`) | downs or ups to the yes row, then `enter` | the same walk to the no row |
+| anything else | `enter` | `esc` |
+
+A cursor-menu walk is recomputed off a fresh read right before sending, and nothing is sent if the rows changed. Keys go out through `hc keys`; a written answer through `hc send`. Standup, when sending is on, types the same line into up to 12 idle terminals.
+
+## Helpers and agents
+
+Nothing needs configuring for helpers: the office reads Herdr's own `terminals()` and each one's `parent`. Herdr's agent skill (`hc --skill`) already tells agents to start helpers with `hc run --bg --name <name>`. If your agents open new tabs for side work instead, a line in your agent instructions such as "start helpers with `hc run --bg --name <short-name>`, never a new tab" keeps them at the right desk and labelled.
 
 ## Settings
 
 | Prop | Where | Default | Effect |
 | --- | --- | --- | --- |
-| `send` | floor block, `layouts/office.json` | `false` | `true` allows `hc send` from y / n / Y, the written answer, and standup |
+| `send` | floor block, `layouts/office.json` | `false` | `true` lets Y / N / always, the written answer, and standup type into agents |
+| `demo` | floor block | `false` | `true` draws a made-up floor (see below) |
 
-There is no other setting. Identity, home desks, the punch clock and "how long in this status" are remembered in the mod's local storage.
+Identity, home desks, lounge seats and width, the punch clock and "how long in this status" are kept in the mod's local storage.
+
+## Demo floor
+
+`layouts/office-demo.json` is the office with `"demo": true`: seven made-up agents in two spaces (one blocked, one with a helper, two chatting in the lounge), invented folders, branches and questions. It reads no screen, runs no `git` or `ps`, sends nothing and focuses nothing, so it is safe to screenshot. Your real terminals still show in the panes under the floor, so crop to the floor.
+
+```sh
+cp layouts/office-demo.json layouts/office-demo.svg "$home/layouts/"
+herdr-app do layout.switch '{"name":"office-demo"}'
+```
 
 ## Privacy
 
 Same rules as herdr-office:
 
-- Git is `git status --porcelain=v1` with `--no-optional-locks`, `core.fsmonitor=false` and `core.quotePath=true`, via `exec` and `on` set to the space's machine. The floor shows counts only. Paths from git never get drawn.
-- The context gauge reads `hc read <terminal> --lines 24` and keeps a percent plus a model name from a fixed list (`opus`, `sonnet`, `gpt`, `codex`, …). The status line is not stored and not drawn.
-- Two agents "stuck on the same thing" are grouped by a hash of the question. The question is not drawn.
+- Git is `git status --porcelain=v1` with `--no-optional-locks`, `core.fsmonitor=false` and `core.quotePath=true`, run on the space's machine. The floor shows counts only; paths from git are never drawn.
+- The context gauge keeps a percent and a model name from a fixed list (`opus`, `sonnet`, `gpt`, `codex`, …). The status line itself is not stored or drawn.
+- What a desk or helper is running comes from one `ps` per pass, walked below that agent only, and only a program name plus one short sub-command (bare words of 16 characters or fewer) ever reaches the screen. Arguments, which is where tokens and paths live, never do. Wrappers, shells, MCP servers and telemetry are filtered out.
+- A blocked agent's question, the tool call it is about and its last few lines are drawn in its bubble and card, as in herdr-office. Nothing else off a screen is drawn or stored.
 - Directory labels are the last path segment.
-- Notices report collisions, a head at 90% or more, the same question, and an idle desk with uncommitted files. They do not instruct, and they do not send input.
 
 ## What this version does not do
 
-- It does not draw raw terminal text, the foreground command, or the TUI's speech-bubble question.
-- It does not infer which keys an approval menu wants. y / n / Y are the characters themselves.
-- No desk dragging, no shepherd mode, no zoom from floor to a single cubicle, no news slabs, no escalation toasts (Herdr already toasts when an agent needs you).
-- "Unsure" is only for a status outside working / blocked / done / idle. Today's app reports those four, so the bookshelf stays empty unless one shows up.
-- Looks repeat after seven agents. The tab name tells them apart. A new agent does not repaint people who are already here.
-- The floor is laid out in pixels from the measured size. A short or narrow window scrolls.
+- No desk dragging, shepherd mode, single-cubicle zoom, news slabs or escalation toasts (Herdr already toasts when an agent needs you).
+- "Unsure" is only for a status outside working / blocked / done / idle, which today's app does not report.
+- Looks repeat after seven agents; the tab name tells them apart.
+- Tabs an agent opens with `tab.new` are separate desks with no link back to it. Only `hc run` helpers are linked.
 
 ## Check without the app
 
-`scripts/check-logic.js` exercises the ported counters, the gauge, notices, the punch clock, seating, and the send gate. It does not import `herdr`.
+The `scripts/` checks exercise the ported logic without importing `herdr`: counters, gauge, notices, punch clock, seating, the send gate, the approval reader (the herdr-office tests), the process allowlist, lounge seats, helpers and looks.
 
 ```sh
 node --experimental-default-type=module scripts/check-logic.js
-node --check mods/office/main.js
+node --experimental-default-type=module scripts/check-process.js
+node --test scripts/check-ask.js
 ```
 
 ## Credits
 
-The office, the status rules, the punch clock, the dirt counts, the context gauge and the notices are ported from [herdr-office](https://github.com/michaellandi/herdr-office) by Michael Landi. That plugin is MIT. This layout keeps the same license.
+The office, the status rules, the punch clock, the dirt counts, the context gauge, the notices, the approval reader and the process detection are ported from [herdr-office](https://github.com/michaellandi/herdr-office) by Michael Landi. That plugin is MIT; this layout keeps the same license. `mods/office-peek` is a clone of Herdr's own `peek` mod.
 
-The blob cast (bow and mug, beanie, cat ears and glasses, headphones, sprout, lop ears, antenna) is new art for the GUI. Body color is identity. Status stays on the label and the ring.
+The blob cast (bow and mug, beanie, cat ears and glasses, headphones, sprout, lop ears, antenna) is new art for the GUI. Body color is identity; status is on the name tag.
 
-Built against the layout guide in [herdr-app](https://github.com/herdrdev/herdr-app) and the [pasture example](https://github.com/herdrdev/herdr-layout-examples/tree/main/pasture), which is the same shape: a scene, a rail, and the live tab under pane headers from one mod.
+Built against the layout guide in [herdr-app](https://github.com/herdrdev/herdr-app) and the [pasture example](https://github.com/herdrdev/herdr-layout-examples/tree/main/pasture).

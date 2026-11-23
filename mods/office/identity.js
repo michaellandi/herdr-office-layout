@@ -22,6 +22,15 @@ export function castIndex(key) {
   return fnv(key) % CAST.length;
 }
 
+// A helper's look: its own hash, walking forward past any look in `taken`
+// (its parent's, and siblings' at the same desk). A string is one look.
+export function helperCast(address, taken) {
+  const avoid = taken instanceof Set ? taken : new Set([taken]);
+  let i = castIndex(address);
+  for (let n = 0; n < CAST.length && avoid.has(CAST[i].id); n += 1) i = (i + 1) % CAST.length;
+  return CAST[i];
+}
+
 export function castByIndex(index) {
   const i = Number.isInteger(index) ? ((index % CAST.length) + CAST.length) % CAST.length : 0;
   return CAST[i];
@@ -35,6 +44,9 @@ export function assignCasts(addresses, saved = {}) {
     if (!addresses.includes(addr)) continue;
     const index = saved[addr];
     if (!Number.isInteger(index)) continue;
+    // A look someone else already kept is given up, so repeats left over from
+    // a busier floor clear once there is room for everyone to be unique.
+    if (used.has(index % CAST.length) && addresses.length <= CAST.length) continue;
     next[addr] = index % CAST.length;
     used.add(next[addr]);
   }

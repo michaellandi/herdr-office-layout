@@ -11,7 +11,57 @@ export function spaceMachine(spaces, spaceId) {
   return space ? space.machine ?? null : null;
 }
 
-export function buildPeople({ agents, spaces, panes, casts, seats, since, dirt, heads, now }) {
+// Agents plus every plain terminal pane, so a hired terminal gets a desk before
+// an agent is started in it. A terminal with no agent status is a "shell".
+// Once an agent runs there, agents() lists it and the shell entry drops out.
+export function withShells(agents, panes, spaces) {
+  const list = [...(agents || [])];
+  const seen = new Set(list.map((a) => a && a.address));
+  const tabs = new Map();
+  for (const space of spaces || []) {
+    for (const tab of space.tabs || []) tabs.set(tab.id, { space, tab });
+  }
+  for (const pane of panes || []) {
+    if (!pane || !pane.terminal || seen.has(pane.terminal)) continue;
+    const where = tabs.get(pane.tab);
+    if (!where) continue;
+    seen.add(pane.terminal);
+    list.push({
+      address: pane.terminal,
+      pane: pane.pane,
+      space: where.space.id,
+      space_name: where.space.name,
+      tab: pane.tab,
+      tab_index: where.tab.index,
+      tab_name: where.tab.name,
+      status: "shell",
+      app: null,
+      program: pane.program || { key: "shell", name: "shell" },
+      focused: !!pane.focused,
+    });
+  }
+  return list;
+}
+
+// Sub-agents: live terminals another terminal started with `hc run`. They have
+// no pane, so agents() and panes() never give them a desk; they sit with the
+// desk of whoever started them. Returns parent address -> helpers, at most
+// `max` each, in start order.
+export function helpersByParent(terminals, panes, max = 3) {
+  const paned = new Set((panes || []).map((p) => p && p.terminal).filter(Boolean));
+  const out = new Map();
+  for (const t of terminals || []) {
+    if (!t || !t.parent || !t.address || paned.has(t.address)) continue;
+    if (t.state && t.state !== "live") continue;
+    const parent = String(t.parent);
+    if (!out.has(parent)) out.set(parent, []);
+    const list = out.get(parent);
+    if (list.length < max) list.push({ address: t.address, parent, name: t.name || null, status: t.status || null, program: t.program || null });
+  }
+  return out;
+}
+
+export function buildPeople({ agents, spaces, panes, casts, seats, since, dirt, heads, commands, now }) {
   const spaceById = new Map((spaces || []).map((s) => [s.id, s]));
   const paneByTerminal = new Map();
   for (const pane of panes || []) {
@@ -26,8 +76,11 @@ export function buildPeople({ agents, spaces, panes, casts, seats, since, dirt, 
     const seen = since && since[agent.address];
     const status = officeStatus(agent.status);
     const at = seen && seen.status === status && Number.isFinite(seen.at) ? seen.at : now;
-    const head = heads && heads[agent.address] ? heads[agent.address].gauge : null;
-    const askFp = heads && heads[agent.address] ? heads[agent.address].askFp : null;
+    const read = heads ? (typeof heads.get === "function" ? heads.get(agent.address) : heads[agent.address]) : null;
+    const head = read ? read.gauge : null;
+    const askFp = read ? read.askFp : null;
+    // Only kept while they are blocked: once the hand is down the question is gone.
+    const asking = status === "blocked" && read && read.ask ? read.ask : null;
     const cwd = pane?.cwd || null;
     list.push({
       id: agent.address,
@@ -56,8 +109,16 @@ export function buildPeople({ agents, spaces, panes, casts, seats, since, dirt, 
       head: head && Number.isFinite(head.used) ? { used: head.used, model: head.model || null } : null,
       model: head?.model || null,
       askFp: askFp == null ? null : askFp,
+      command: status === "working" && commands && typeof commands.get === "function" ? commands.get(agent.address) || null : null,
+      ask: asking ? asking.ask : null,
+      bubble: asking ? asking.bubble : null,
+      said: asking ? asking.said : [],
+      askCommand: asking && asking.command ? asking.command : [],
+      choice: asking ? asking.choice : null,
       seat: seats && seats[agent.address] ? seats[agent.address].n : 0,
       focused: !!agent.focused,
+      // On screen in the live tab below the floor (several can be, in a split).
+      shown: !!(space && space.active && (space.tabs || []).some((t) => t.id === agent.tab && t.active)),
     });
   }
   list.sort((a, b) => {

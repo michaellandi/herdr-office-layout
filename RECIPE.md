@@ -1,10 +1,10 @@
 # Herdr Office
 
-Your agents as blob people in one open-plan office, above the live tab. Working people sit at a home desk, idle people go to the lounge, done people stand at the shipped board, and someone who needs you walks to the front with a hand up. Click a person and their terminal is focused below.
+Your agents as blob people in one open-plan office, above the live tab. Working people sit at a home desk, idle and done people go to the lounge, and someone who needs you walks to the front with a hand up. Click a person for their card.
 
 ![Herdr Office](preview.png)
 
-This file is the brief: enough to build the office from an empty folder. The files next to it are one build of it. `preview.png` is a design mockup of that window, not a capture of a running Herdr.
+This file is the brief: enough to build the office from an empty folder. The files next to it are one build of it, which has grown past the brief (helpers, lounge activities, the approval reader, the demo floor); the README describes that build. `preview.png` is a design mockup of that window, not a capture of a running Herdr.
 
 ## What you see
 
@@ -15,8 +15,7 @@ Four bands, top to bottom, filling the window (no title bar). Dark ink UI, Geist
    - Left, a lounge card (`#222838`, about 17% of the width, at least 176px): coffee machine, bookshelf, couch.
    - The rest is rugs, one per space that has a visible agent. Two or more spaces get muted tints in floor order (slate, heather, teal, rose, olive, sand). One space stays the plain rug `#222a38`. The rug label is the space name.
    - Each agent has a home desk on their space's rug: a monitor and a wooden desk. An open seat at the end of the rug says "+ hire".
-   - Bottom right of the room: a green "SHIPPED" board.
-   - A detail card (268px) sits at the top right of the floor while someone is hovered or was clicked.
+   - A detail card (268px) sits at the top right of the floor while someone was clicked; a press outside it closes it.
 3. **Rail**, 34px. `space / tab`, a filter field ("filter names, tabs, status…"), **+ Hire**, **Standup**, the current notice or "focus only · sending is off", and the desk count.
 4. **The live tab**, the rest. Panes are cards with a 10px gap, 10px radius, framed even when alone. Border `#2c3548`. Focus border `#e0a15a`, 2px. Header 32px, always visible, background `#141a22`: program icon and name, branch, directory name, `+N` uncommitted, context percent, status label. Hover adds split, zoom and close.
 
@@ -41,17 +40,17 @@ Every agent has one home desk. The desk number sticks for that terminal in that 
 | working | home desk | sitting | green ring, tab name on the monitor, a small bob |
 | blocked (needs you) | front of the room | hand raised | amber ring, bounce, a bubble: "needs you", the tab name, buttons y n s Y |
 | idle | coffee, then along the couch | dozing | "z" fading, monitor says "away" |
-| done | shipped board | sitting | cyan ring |
+| done | lounge | sitting | cyan tag |
 | anything else | bookshelf | dozing | label UNSURE. The app's four statuses never land here |
 
-- Hovering a blob pins the detail card (status and duration, on-shift time, tab, space, directory name, branch, uncommitted words, context words, model). It does not move the keyboard.
+- Clicking a blob opens the detail card (status and duration, on-shift time, tab, space, directory name, branch, uncommitted words, context words, model). It does not move the keyboard.
 - Clicking a blob or their desk runs `agent.focus` with that terminal.
 - Clicking an open seat, or **+ Hire**, opens a dialog of `knownAgents()`. An installed agent starts with `tab.new` (`argv` is that agent's `run`, in the seat's space and folder).
 - Count chips toggle a status filter. The rail field filters name, program, tab, space, status, branch and directory name. `setAgentOrder` follows whoever is still on the floor.
 - A notice line (collision, head ≥ 90%, same question, idle with uncommitted files) focuses the agent it names. Clicking it advances to the next notice.
 - **Standup** lists idle agents. It types only when sending is on.
 - Moves animate with `.transition("left")` and `.transition("top")` over 900ms, ease-in-out. Flourishes are `.loop` (bob, bounce, steam, "z"). A 2s timer updates the punch clock. Git and `hc read` run about every 30s.
-- `send` is a prop on the floor block, default `false`. Off: y / n / s / Y focus the agent and the bubble says "focus only". On: y, n and Y are `hc(["send", address, "y"|"n"|"Y"])`. s opens a field; submit sends the text plus a newline. Standup sends that same line to at most 12 idle terminals. This is not the TUI's menu walker.
+- `send` is a prop on the floor block, default `false`. Off: Y / N / S only focus the agent. On: Y and N send the keys read off the screen (see README, "Answering for you") through `hc keys`; S opens a field and sends the text plus a newline through `hc send`. Standup sends that same line to at most 12 idle terminals.
 
 ## Built from
 
@@ -68,7 +67,7 @@ Every agent has one home desk. The desk number sticks for that terminal in that 
 - `checking()` returns before timers, `exec`, `hc`, and `setShared`. `init` still builds the reply field, because `herdr-app check` renders the view.
 - Asset paths are `mods/office/…`. Renaming the folder means renaming those paths and the `mod` names in the layout.
 - Homes and looks are remembered in `localStorage` (`office.seats.v1`, `office.cast.v1`). The punch clock and status durations (`office.punch.v1`, `office.since.v1`) reset when the local day changes. Storage is per mod props, so only the floor copy (the one with `send`) writes it and republishes through `shared`.
-- y / n / Y do not press Enter and do not walk a menu. Leave `send` false until that has been watched on a real agent.
+- Y and N walk cursor menus from a fresh read and send nothing if the menu changed. Leave `send` false until that has been watched on a real agent.
 - Pixel layout. A narrow window scrolls the floor. Ten-plus agents on one rug wrap to another row and the room grows downward.
 - The layout brings its own colors. Drop `theme` and `colors` to follow the person's theme. The mod's floor colors are still the hexes above.
 
@@ -77,6 +76,6 @@ Every agent has one home desk. The desk number sticks for that terminal in that 
 - Every agent is a blob with a stable name and topper, a home desk, and a place that matches the table above.
 - Clicking a blob focuses that agent, the rail names their space and tab, and the pane header shows their status.
 - An empty seat hires an installed agent into that space.
-- With `send` left false, y / n / s / Y do not call `hc`.
+- With `send` left false, Y / N / S do not call `hc`.
 - Dirt on a card is a count, the context row is a percent and maybe a model, and neither row contains a path or a line from the terminal.
 - `herdr-app check mods/office` passes, and switching to another layout and back works.

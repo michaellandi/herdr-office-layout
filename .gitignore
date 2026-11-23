@@ -1,0 +1,4 @@
+# Written beside a mod by herdr-app check. Not part of the layout.
+mods/**/jsconfig.json
+mods/**/*.d.ts
+node_modules/

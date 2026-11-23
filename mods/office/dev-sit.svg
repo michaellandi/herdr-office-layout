@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 96">
+  <ellipse cx="40" cy="90" rx="18" ry="4" fill="#000" opacity="0.18"/>
+  <path d="M16 50 Q40 18 64 50" fill="none" stroke="#2E3544" stroke-width="4"/><rect x="8" y="44" width="12" height="18" rx="4" fill="#2E3544"/><rect x="60" y="44" width="12" height="18" rx="4" fill="#2E3544"/>
+  <ellipse cx="40" cy="58" rx="26" ry="23" fill="#A9B4EA"/>
+  <ellipse cx="34" cy="50" rx="10" ry="7" fill="#fff" opacity="0.2"/>
+  <ellipse cx="16" cy="68" rx="8" ry="6" fill="#A9B4EA"/><ellipse cx="64" cy="68" rx="8" ry="6" fill="#A9B4EA"/>
+  <circle cx="32" cy="56" r="3.3" fill="#2A2418"/><circle cx="48" cy="56" r="3.3" fill="#2A2418"/>
+    <circle cx="33.2" cy="54.8" r="1.1" fill="#fff"/><circle cx="49.2" cy="54.8" r="1.1" fill="#fff"/>
+  <path d="M34 66 Q40 72 46 66" fill="none" stroke="#2A2418" stroke-width="1.7" stroke-linecap="round"/>
+  <ellipse cx="24" cy="64" rx="4" ry="2.2" fill="#8B98D8" opacity="0.8"/>
+  <ellipse cx="56" cy="64" rx="4" ry="2.2" fill="#8B98D8" opacity="0.8"/>
+  
+</svg>

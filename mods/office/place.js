@@ -53,32 +53,28 @@ function rng(seed) {
 // and clear of the furniture. Best-candidate sampling: each new spot is the
 // candidate farthest from everything placed so far, and it is only kept if
 // it is at least SPACING away. Returns them in placement order.
-export function scatterSpots(lounge, couchTop, furniture = [], already = []) {
-  const x0 = lounge.x - 22;
-  const x1 = lounge.x + lounge.w - PERSON_W + 22;
-  const y0 = lounge.y + 24;
-  const y1 = couchTop - PERSON_H + 6;
+export function scatterSpots(band, top, want = 12) {
+  // band.x/band.w: the lounge's horizontal extent. band.y..top: the range of
+  // the token's bottom edge, measured up from the floor's bottom.
+  const x0 = band.x - 22;
+  const x1 = band.x + band.w - PERSON_W + 22;
+  const y0 = band.y;
+  const y1 = top - PERSON_H;
   if (x1 < x0 || y1 < y0) return [];
-  const rand = rng(Math.round(lounge.w) * 7919 + Math.round(y1 - y0) * 104729 + 17);
-  const centre = (x, y) => [x + PERSON_W / 2, y + PERSON_H / 2];
-  const blocked = furniture.map((f) => [f.x + f.w / 2, f.y + f.h / 2, Math.max(f.w, f.h) / 2 + 30]);
-  // Spots that are already somebody's (the coffee machine) count as placed.
-  const seeded = already.map((p) => { const [cx, cy] = centre(p.x, p.y); return { cx, cy, fixed: true }; });
-  const placed = [...seeded];
-  for (let n = 0; n < 24; n += 1) {
+  const rand = rng(Math.round(band.w) * 7919 + Math.round(y1 - y0) * 104729 + 17);
+  const placed = [];
+  for (let n = 0; n < want; n += 1) {
     let best = null;
-    for (let c = 0; c < 40; c += 1) {
+    for (let c = 0; c < 60; c += 1) {
       const x = x0 + rand() * (x1 - x0);
       const y = y0 + rand() * (y1 - y0);
-      const [cx, cy] = centre(x, y);
-      if (blocked.some(([fx, fy, r]) => Math.hypot(cx - fx, cy - fy) < r)) continue;
-      const d = placed.reduce((m, p) => Math.min(m, Math.hypot(cx - p.cx, cy - p.cy)), Infinity);
-      if (!best || d > best.d) best = { x, y, cx, cy, d };
+      const d = placed.reduce((m, p) => Math.min(m, Math.hypot(x - p.x, y - p.y)), Infinity);
+      if (!best || d > best.d) best = { x, y, d };
     }
     if (!best || best.d < SPACING) break;
     placed.push(best);
   }
-  return placed.filter((p) => !p.fixed).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  return placed.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
 }
 
 export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeats = null }) {
@@ -162,7 +158,17 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // The lounge needs room for coffee, shelf and couch; the work area for its
   // desks, plus the front row only while someone needs you.
   const anyBlocked = (list || []).some((g) => (g.people || []).some((p) => p.status === "blocked"));
-  const contentH = Math.max(300, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
+  // Only as tall as what is on it, so a short floor pane does not scroll the
+  // bottom-anchored couch out of view. The lounge needs its top furniture
+  // (coffee and shelf, about 150), the couch and its margin, and a band of
+  // floor spots when there are more loungers than couch and coffee seats.
+  const loungers = (list || []).flatMap((g) => g.people || []).filter((p) => p.status === "idle" || p.status === "done").length;
+  const couchSeats = Math.max(1, Math.floor((loungeW - 32) / LOUNGE_STEP));
+  const overflow = Math.max(0, loungers - couchSeats - 1);
+  const perRowGuess = Math.max(1, Math.floor((loungeW + 44 - PERSON_W) / SPACING) + 1);
+  const floorBand = overflow ? PERSON_H + 60 + (Math.ceil(overflow / perRowGuess) - 1) * 86 : 0;
+  const loungeNeed = GAP + 150 + 68 + COUCH_BOTTOM + floorBand;
+  const contentH = Math.max(loungeNeed, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
   const lounge = { x: GAP, y: GAP, w: loungeW, h: contentH - GAP * 2 };
   const coffee = { x: lounge.x + 14, y: lounge.y + 32, w: 58, h: 70 };
   const shelf = { x: lounge.x + lounge.w - 74, y: lounge.y + 36, w: 58, h: 96 };
@@ -182,13 +188,26 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     idleSpots.push({ x: Math.round(center - 54), y: couch.y - 8, kind: "couch", bottom: fits ? COUCH_BOTTOM + 2 : null });
   }
   idleSpots.push({ x: coffee.x - 4, y: coffee.y + 18, kind: "coffee" });
-  // Then the open floor: scattered spots, spaced so nobody overlaps.
-  const worldH = fits ? Math.max(contentH, h) : contentH;
-  const couchTop = fits ? worldH - COUCH_BOTTOM - couch.h : couch.y;
-  for (const spot of scatterSpots(lounge, couchTop, [
-    { x: coffee.x, y: coffee.y, w: coffee.w + 20, h: coffee.h },
-    { x: shelf.x, y: shelf.y, w: shelf.w, h: shelf.h },
-  ], idleSpots.filter((sp) => sp.kind === "coffee"))) idleSpots.push({ ...spot, kind: "floor" });
+  // Then the open floor just above the couch: scattered spots, spaced so
+  // nobody overlaps. Measured from the bottom like the couch, because the
+  // measured pane height can overstate what is drawn; anchoring to the
+  // bottom keeps them on the visible floor whatever the height.
+  if (fits) {
+    // Tall enough for everyone who will not fit on the couch or at the
+    // coffee machine: a row of spots per ~86px, at least one row.
+    const loungers = list.flatMap((g) => g.people).filter((p) => p.status === "idle" || p.status === "done").length;
+    const extra = Math.max(0, loungers - idleSpots.length);
+    const perRow = Math.max(1, Math.floor((lounge.w + 44 - PERSON_W) / SPACING) + 1);
+    const base = COUCH_BOTTOM + couch.h - 4;
+    // Grow the band a row at a time until everyone has a spot (random
+    // sampling does not pack perfectly, so the row count is a starting guess).
+    let spots = [];
+    for (let rows = Math.max(1, Math.ceil(extra / perRow)); rows <= 12; rows += 1) {
+      spots = scatterSpots({ x: lounge.x, y: base, w: lounge.w }, base + PERSON_H + 60 + (rows - 1) * 86, Math.max(4, extra + 2));
+      if (spots.length >= extra) break;
+    }
+    for (const spot of spots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
+  }
 
   const people = list.flatMap((group) => group.people);
   // Done means "finished while you weren't looking". They are off the clock

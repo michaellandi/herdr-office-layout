@@ -68,9 +68,14 @@ console.log("helpers ok");
   const floor = pts.filter((p) => p.seat === "floor");
   assert.ok(floor.length >= 1, "then the floor");
   for (let i = 0; i < floor.length; i += 1) for (let j = i + 1; j < floor.length; j += 1) {
-    assert.ok(Math.hypot(floor[i].x - floor[j].x, floor[i].y - floor[j].y) >= 76, "floor spots keep their distance");
+    assert.ok(Math.hypot(floor[i].x - floor[j].x, floor[i].bottom - floor[j].bottom) >= 76, "floor spots keep their distance");
   }
-  const again = layoutFloor({ width: 1400, height: 700, groups: g(many), loungeSeats: seatsL });
-  assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].y]), "stable between renders");
+  for (const f of floor) {
+    // Anchored to the bottom, just above the couch: never below the floor's edge.
+    assert.ok(Number.isFinite(f.bottom) && f.bottom >= 12 + 68 - 4, "floor spots sit above the couch");
+  }
+  // A much taller measured pane (it can overstate) must not move them.
+  const again = layoutFloor({ width: 1400, height: 1600, groups: g(many), loungeSeats: seatsL });
+  assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].bottom ?? again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].bottom ?? sc.spots[a].y]), "stable, whatever the measured height");
   console.log("lounge ok", kinds.join(","));
 }

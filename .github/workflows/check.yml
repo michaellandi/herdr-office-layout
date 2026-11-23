@@ -1,0 +1,31 @@
+# Runs the logic checks that need no Herdr app: the ported counters, gauge,
+# notices, punch clock, seating, send gate, approval reader, process
+# allowlist, helpers and looks, plus a syntax check of every mod file.
+# `herdr-app check` needs the app itself, so it stays a local step.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax of every mod file
+        run: for f in mods/*/*.js; do node --check "$f"; done
+      - name: Logic
+        run: node --experimental-default-type=module scripts/check-logic.js
+      - name: Process allowlist, seats, helpers, looks
+        run: node --experimental-default-type=module scripts/check-process.js
+      - name: Approval reader (herdr-office's tests)
+        run: node --test scripts/check-ask.js

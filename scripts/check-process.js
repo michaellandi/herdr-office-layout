@@ -56,3 +56,21 @@ const hp = helpersByParent([
 ], [{ terminal: "t6" }, { terminal: "t12" }]);
 assert.deepEqual(hp.get("t6").map((h) => h.address), ["t9", "t11"], "live, paneless, children only");
 console.log("helpers ok");
+// Lounge: couch, then coffee, then scattered floor spots, never overlapping.
+{
+  const seatsL = new Map();
+  const many = Array.from({ length: 9 }, (_, i) => `l${i}`);
+  const sc = layoutFloor({ width: 1400, height: 700, groups: g(many), loungeSeats: seatsL });
+  const pts = many.map((a) => sc.spots[a]);
+  const kinds = pts.map((p) => p.seat);
+  assert.equal(kinds.filter((k) => k === "couch").length >= 2, true, "couch first");
+  assert.equal(kinds.includes("coffee"), true, "then coffee");
+  const floor = pts.filter((p) => p.seat === "floor");
+  assert.ok(floor.length >= 1, "then the floor");
+  for (let i = 0; i < floor.length; i += 1) for (let j = i + 1; j < floor.length; j += 1) {
+    assert.ok(Math.hypot(floor[i].x - floor[j].x, floor[i].y - floor[j].y) >= 76, "floor spots keep their distance");
+  }
+  const again = layoutFloor({ width: 1400, height: 700, groups: g(many), loungeSeats: seatsL });
+  assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].y]), "stable between renders");
+  console.log("lounge ok", kinds.join(","));
+}

@@ -31,6 +31,56 @@ function placeKind(status) {
 export const LOUNGE_MIN = 150;
 export const loungeMax = (w) => Math.round(Math.max(LOUNGE_MIN, Math.min(460, w * 0.45)));
 
+// A person token is 108 wide; the body is about 58 wide in its middle and
+// the token about 90 tall with its name tag. Spots are the token's top-left.
+const PERSON_W = 108;
+const PERSON_H = 90;
+const SPACING = 76; // centre-to-centre, so bodies and name tags never touch
+
+// Small deterministic RNG, so the same lounge gets the same spots every
+// render and nobody jumps.
+function rng(seed) {
+  let x = (seed >>> 0) || 1;
+  return () => {
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5; x >>>= 0;
+    return x / 4294967296;
+  };
+}
+
+// Random-looking but evenly spaced spots on the lounge floor, above the couch
+// and clear of the furniture. Best-candidate sampling: each new spot is the
+// candidate farthest from everything placed so far, and it is only kept if
+// it is at least SPACING away. Returns them in placement order.
+export function scatterSpots(lounge, couchTop, furniture = [], already = []) {
+  const x0 = lounge.x - 22;
+  const x1 = lounge.x + lounge.w - PERSON_W + 22;
+  const y0 = lounge.y + 24;
+  const y1 = couchTop - PERSON_H + 6;
+  if (x1 < x0 || y1 < y0) return [];
+  const rand = rng(Math.round(lounge.w) * 7919 + Math.round(y1 - y0) * 104729 + 17);
+  const centre = (x, y) => [x + PERSON_W / 2, y + PERSON_H / 2];
+  const blocked = furniture.map((f) => [f.x + f.w / 2, f.y + f.h / 2, Math.max(f.w, f.h) / 2 + 30]);
+  // Spots that are already somebody's (the coffee machine) count as placed.
+  const seeded = already.map((p) => { const [cx, cy] = centre(p.x, p.y); return { cx, cy, fixed: true }; });
+  const placed = [...seeded];
+  for (let n = 0; n < 24; n += 1) {
+    let best = null;
+    for (let c = 0; c < 40; c += 1) {
+      const x = x0 + rand() * (x1 - x0);
+      const y = y0 + rand() * (y1 - y0);
+      const [cx, cy] = centre(x, y);
+      if (blocked.some(([fx, fy, r]) => Math.hypot(cx - fx, cy - fy) < r)) continue;
+      const d = placed.reduce((m, p) => Math.min(m, Math.hypot(cx - p.cx, cy - p.cy)), Infinity);
+      if (!best || d > best.d) best = { x, y, cx, cy, d };
+    }
+    if (!best || best.d < SPACING) break;
+    placed.push(best);
+  }
+  return placed.filter((p) => !p.fixed).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+}
+
 export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeats = null }) {
   const w = Math.max(720, Math.round(width || 1200));
   const h = Math.max(320, Math.round(height || 460));
@@ -121,7 +171,8 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const couch = { x: lounge.x + 12, y: lounge.y + 150, w: lounge.w - 24, h: 68 };
   const board = { x: w - GAP - 108, y: contentH - frontH + 18, w: 96, h: 86 };
 
-  // The couch first, side by side, then the coffee machine. Couch seats are
+  // The couch first, side by side, then the coffee machine, then scattered
+// spots on the open floor (scatterSpots). Couch seats are
   // measured from the bottom when the floor fits its pane (the couch is pinned
   // there), and are LOUNGE_STEP apart so two people never overlap.
   const idleSpots = [];
@@ -131,6 +182,13 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     idleSpots.push({ x: Math.round(center - 54), y: couch.y - 8, kind: "couch", bottom: fits ? COUCH_BOTTOM + 2 : null });
   }
   idleSpots.push({ x: coffee.x - 4, y: coffee.y + 18, kind: "coffee" });
+  // Then the open floor: scattered spots, spaced so nobody overlaps.
+  const worldH = fits ? Math.max(contentH, h) : contentH;
+  const couchTop = fits ? worldH - COUCH_BOTTOM - couch.h : couch.y;
+  for (const spot of scatterSpots(lounge, couchTop, [
+    { x: coffee.x, y: coffee.y, w: coffee.w + 20, h: coffee.h },
+    { x: shelf.x, y: shelf.y, w: shelf.w, h: shelf.h },
+  ], idleSpots.filter((sp) => sp.kind === "coffee"))) idleSpots.push({ ...spot, kind: "floor" });
 
   const people = list.flatMap((group) => group.people);
   // Done means "finished while you weren't looking". They are off the clock

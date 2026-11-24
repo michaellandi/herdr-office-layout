@@ -31,6 +31,52 @@ function placeKind(status) {
 export const LOUNGE_MIN = 150;
 export const loungeMax = (w) => Math.round(Math.max(LOUNGE_MIN, Math.min(460, w * 0.45)));
 
+// A person token is 108 wide; the body is about 58 wide in its middle and
+// the token about 90 tall with its name tag. Spots are the token's top-left.
+const PERSON_W = 108;
+const PERSON_H = 90;
+const SPACING = 76; // centre-to-centre, so bodies and name tags never touch
+
+// Small deterministic RNG, so the same lounge gets the same spots every
+// render and nobody jumps.
+function rng(seed) {
+  let x = (seed >>> 0) || 1;
+  return () => {
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5; x >>>= 0;
+    return x / 4294967296;
+  };
+}
+
+// Random-looking but evenly spaced spots on the lounge floor, above the couch
+// and clear of the furniture. Best-candidate sampling: each new spot is the
+// candidate farthest from everything placed so far, and it is only kept if
+// it is at least SPACING away. Returns them in placement order.
+export function scatterSpots(band, top, want = 12) {
+  // band.x/band.w: the lounge's horizontal extent. band.y..top: the range of
+  // the token's bottom edge, measured up from the floor's bottom.
+  const x0 = band.x - 22;
+  const x1 = band.x + band.w - PERSON_W + 22;
+  const y0 = band.y;
+  const y1 = top - PERSON_H;
+  if (x1 < x0 || y1 < y0) return [];
+  const rand = rng(Math.round(band.w) * 7919 + Math.round(y1 - y0) * 104729 + 17);
+  const placed = [];
+  for (let n = 0; n < want; n += 1) {
+    let best = null;
+    for (let c = 0; c < 60; c += 1) {
+      const x = x0 + rand() * (x1 - x0);
+      const y = y0 + rand() * (y1 - y0);
+      const d = placed.reduce((m, p) => Math.min(m, Math.hypot(x - p.x, y - p.y)), Infinity);
+      if (!best || d > best.d) best = { x, y, d };
+    }
+    if (!best || best.d < SPACING) break;
+    placed.push(best);
+  }
+  return placed.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+}
+
 export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeats = null }) {
   const w = Math.max(720, Math.round(width || 1200));
   const h = Math.max(320, Math.round(height || 460));
@@ -112,7 +158,17 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // The lounge needs room for coffee, shelf and couch; the work area for its
   // desks, plus the front row only while someone needs you.
   const anyBlocked = (list || []).some((g) => (g.people || []).some((p) => p.status === "blocked"));
-  const contentH = Math.max(300, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
+  // Only as tall as what is on it, so a short floor pane does not scroll the
+  // bottom-anchored couch out of view. The lounge needs its top furniture
+  // (coffee and shelf, about 150), the couch and its margin, and a band of
+  // floor spots when there are more loungers than couch and coffee seats.
+  const loungers = (list || []).flatMap((g) => g.people || []).filter((p) => p.status === "idle" || p.status === "done").length;
+  const couchSeats = Math.max(1, Math.floor((loungeW - 32) / LOUNGE_STEP));
+  const overflow = Math.max(0, loungers - couchSeats - 1);
+  const perRowGuess = Math.max(1, Math.floor((loungeW + 44 - PERSON_W) / SPACING) + 1);
+  const floorBand = overflow ? PERSON_H + 60 + (Math.ceil(overflow / perRowGuess) - 1) * 86 : 0;
+  const loungeNeed = GAP + 150 + 68 + COUCH_BOTTOM + floorBand;
+  const contentH = Math.max(loungeNeed, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
   const lounge = { x: GAP, y: GAP, w: loungeW, h: contentH - GAP * 2 };
   const coffee = { x: lounge.x + 14, y: lounge.y + 32, w: 58, h: 70 };
   const shelf = { x: lounge.x + lounge.w - 74, y: lounge.y + 36, w: 58, h: 96 };
@@ -121,7 +177,8 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const couch = { x: lounge.x + 12, y: lounge.y + 150, w: lounge.w - 24, h: 68 };
   const board = { x: w - GAP - 108, y: contentH - frontH + 18, w: 96, h: 86 };
 
-  // The couch first, side by side, then the coffee machine. Couch seats are
+  // The couch first, side by side, then the coffee machine, then scattered
+// spots on the open floor (scatterSpots). Couch seats are
   // measured from the bottom when the floor fits its pane (the couch is pinned
   // there), and are LOUNGE_STEP apart so two people never overlap.
   const idleSpots = [];
@@ -131,6 +188,26 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     idleSpots.push({ x: Math.round(center - 54), y: couch.y - 8, kind: "couch", bottom: fits ? COUCH_BOTTOM + 2 : null });
   }
   idleSpots.push({ x: coffee.x - 4, y: coffee.y + 18, kind: "coffee" });
+  // Then the open floor just above the couch: scattered spots, spaced so
+  // nobody overlaps. Measured from the bottom like the couch, because the
+  // measured pane height can overstate what is drawn; anchoring to the
+  // bottom keeps them on the visible floor whatever the height.
+  if (fits) {
+    // Tall enough for everyone who will not fit on the couch or at the
+    // coffee machine: a row of spots per ~86px, at least one row.
+    const loungers = list.flatMap((g) => g.people).filter((p) => p.status === "idle" || p.status === "done").length;
+    const extra = Math.max(0, loungers - idleSpots.length);
+    const perRow = Math.max(1, Math.floor((lounge.w + 44 - PERSON_W) / SPACING) + 1);
+    const base = COUCH_BOTTOM + couch.h - 4;
+    // Grow the band a row at a time until everyone has a spot (random
+    // sampling does not pack perfectly, so the row count is a starting guess).
+    let spots = [];
+    for (let rows = Math.max(1, Math.ceil(extra / perRow)); rows <= 12; rows += 1) {
+      spots = scatterSpots({ x: lounge.x, y: base, w: lounge.w }, base + PERSON_H + 60 + (rows - 1) * 86, Math.max(4, extra + 2));
+      if (spots.length >= extra) break;
+    }
+    for (const spot of spots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
+  }
 
   const people = list.flatMap((group) => group.people);
   // Done means "finished while you weren't looking". They are off the clock

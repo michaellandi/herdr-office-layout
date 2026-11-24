@@ -698,15 +698,21 @@ export function drawFloor(model, view) {
   }
   // Speech on top of everyone, so a neighbour or a name tag never covers it.
   // The bubble is edged in the speaker's own color with a tail down to them.
+  // Above the speaker when it fits under the lounge's top edge (clear of the
+  // LOUNGE label), else below them with the tail pointing up.
+  const loungeTop = (scene.worldH || scene.contentH) - scene.lounge.y - 26;
   for (const { person, spot } of talkers) {
     const color = castBody(person.cast);
-    world.child(div().absolute().left(spot.x - 36).bottom(spot.bottom + 86).w(180).flex().justify_center()
+    const above = spot.bottom + 86;
+    const fits = above + 28 <= loungeTop;
+    const tail = div().absolute().left(0).right(0).flex().justify_center()
+      .child(div().w(10).h(6).bg(color).rounded(3));
+    world.child(div().absolute().left(spot.x - 36).bottom(fits ? above : Math.max(4, spot.bottom - 26)).w(180).flex().justify_center()
       .child(div().relative().px(8).py(3).rounded(9).bg("#f4f1ea").border(2).border_color(color)
         .text_size(10).font_weight(600).text_color("#2a2418").whitespace_nowrap()
         .child(spot.talk)
         // The tail, part of the bubble so the two never come apart.
-        .child(div().absolute().bottom(-6).left(0).right(0).flex().justify_center()
-          .child(div().w(10).h(6).bg(color).rounded(3)))));
+        .child(fits ? tail.bottom(-6) : tail.top(-6))));
   }
   // Drag handle on the lounge's right edge. Drawn last so the people at the
   // first desk, whose boxes overlap this edge, do not swallow the press.

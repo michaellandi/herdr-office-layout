@@ -329,6 +329,7 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     lounge,
     coffee,
     stands,
+    worldH,
     shelf,
     couch,
     board,

@@ -1,5 +1,5 @@
 // First: scales this mod's builders (see scale.js).
-import { K } from "./scale.js";
+import { K, setScale } from "./scale.js";
 import { div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, Input } from "gpui-base";
 import { run, shared, setShared, window as osWindow } from "herdr";
@@ -621,8 +621,18 @@ function wideKey(id, label, color, action) {
 }
 
 export function drawFloor(model, view) {
-  // Layout works in unscaled units; the builders scale everything by K.
-  const scene = layoutFloor({ width: view.width / K, height: view.height / K, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats, wander: { now: Date.now(), asleep: (address) => activityOf(address) === "nap" } });
+  // Layout works in unscaled units; the builders scale everything. At the
+  // normal size K, unless the pane is too short for the office: then the
+  // floor shrinks (down to MIN_K) until it fits, and grows back when there
+  // is room. Twice, because a smaller scale fits more desks per row.
+  const lay = (k) => layoutFloor({ width: view.width / k, height: view.height / k, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats, wander: { now: Date.now(), asleep: (address) => activityOf(address) === "nap" } });
+  let k = setScale(K);
+  let scene = lay(k);
+  for (let pass = 0; pass < 2 && scene.contentH * k > view.height + 1; pass += 1) {
+    k = setScale(view.height / scene.contentH);
+    scene = lay(k);
+  }
+  view.scaleNow = k;
   view.scene = scene;
   const drag = view.deskDrag;
   // At least the pane's height (min_h_full) and at least the content's, so

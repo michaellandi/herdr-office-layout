@@ -11,7 +11,21 @@
 import { div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 
+// The normal size. The floor can shrink below it to fit a short pane
+// (setScale, from drawFloor); every other view renders at K.
 export const K = 1.15;
+export const MIN_K = 0.7;
+
+// The scale in force right now, shared across reloads of this module (the
+// patched builders read it on every call).
+const NOW = (globalThis[Symbol.for("herdr-office.scaleNow")] ||= { v: K });
+export function setScale(v) {
+  NOW.v = Number.isFinite(v) ? Math.max(MIN_K, Math.min(K, v)) : K;
+  return NOW.v;
+}
+export function scaleNow() {
+  return NOW.v;
+}
 
 const PIXELS = [
   "w", "h", "size", "min_w", "min_h", "max_w", "max_h",
@@ -22,7 +36,7 @@ const PIXELS = [
 ];
 const MOVES = new Set(["left", "top", "right", "bottom", "width", "height"]);
 
-const k = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * K * 100) / 100 : v);
+const k = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * NOW.v * 100) / 100 : v);
 
 // Marked on each prototype, because Herdr reloads a mod in place on every
 // change: without the mark the patch would wrap the previous patch, and
@@ -57,7 +71,7 @@ function patch(proto, done) {
   }
 }
 
-if (K !== 1) {
+{
   const done = new Set();
   for (const make of [() => div(), () => h_flex(), () => v_flex(), () => image("mods/office/coffee.svg"), () => svg("mods/office/coffee.svg")]) {
     try {

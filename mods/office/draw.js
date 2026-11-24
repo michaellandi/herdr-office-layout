@@ -203,9 +203,9 @@ function nameTag(person, selected) {
 
 function wavingArm(person, id) {
   const color = castBody(person.cast);
-  return div().id(`arm-${id}`).absolute().left(46).w(16).h(40)
-    .loop("top", { from: 8, to: -6, period: 360 })
-    .child(div().absolute().left(3).top(6).w(10).h(30).rounded(5).bg(color))
+  return div().id(`arm-${id}`).absolute().left(46).w(16).h(30)
+    .loop("top", { from: 14, to: 4, period: 360 })
+    .child(div().absolute().left(3).top(6).w(10).h(20).rounded(5).bg(color))
     .child(div().id(`palm-${id}`).absolute().top(0).size(14).rounded(7).bg(color)
       .loop("left", { from: -3, to: 6, period: 240 }));
 }
@@ -647,9 +647,14 @@ export function drawFloor(model, view) {
       .loop("top", { from: scene.coffee.y + 52, to: scene.coffee.y + 38, period: 2900 })
       .loop("opacity", { from: 0.5, to: 0, period: 2900 }))
     .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).top(scene.shelf.y).w(scene.shelf.w).h(scene.shelf.h))
-    .child(image("mods/office/couch.svg").absolute().left(scene.couch.x)
-      .when(scene.fits, (el) => el.bottom(COUCH_BOTTOM)).when(!scene.fits, (el) => el.top(scene.couch.y))
-      .w(scene.couch.w).h(scene.couch.h));
+    // The couch is drawn from shapes (same colors as couch.svg) so it can be
+    // as wide as the lounge with one cushion under each seat: the svg keeps
+    // its shape and its two cushions, so wider seats missed them.
+    .child(div().absolute().left(scene.couch.x + 8).bottom(COUCH_BOTTOM + 22).w(scene.couch.w - 16).h(36).rounded(12).bg("#4a4358"))
+    .child(div().absolute().left(scene.couch.x + 4).bottom(COUCH_BOTTOM + 10).w(scene.couch.w - 8).h(28).rounded(10).bg("#5c546c"))
+    .children((scene.couchSeats || []).map((c) => div().absolute().left(c - 28).bottom(COUCH_BOTTOM + 16).w(56).h(18).rounded(6).bg("#6a6280")))
+    .child(div().absolute().left(scene.couch.x + 2).bottom(COUCH_BOTTOM + 10).w(18).h(30).rounded(8).bg("#3e384c"))
+    .child(div().absolute().left(scene.couch.x + scene.couch.w - 20).bottom(COUCH_BOTTOM + 10).w(18).h(30).rounded(8).bg("#3e384c"));
 
   for (const rug of scene.rugs) {
     const tint = rug.tint || { fill: "#222a38", edge: "#3c4a60" };

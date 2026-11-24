@@ -190,10 +190,13 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // measured from the bottom when the floor fits its pane (the couch is pinned
   // there), and are LOUNGE_STEP apart so two people never overlap.
   const idleSpots = [];
-  const couchN = Math.max(1, Math.floor((couch.w - 8) / LOUNGE_STEP));
+  // Seats keep clear of the couch's arms (18 wide each end).
+  const couchN = Math.max(1, Math.floor((couch.w - 40) / LOUNGE_STEP));
+  const couchCenters = [];
   for (let i = 0; i < couchN; i += 1) {
-    const center = couch.x + couch.w / 2 + (i - (couchN - 1) / 2) * LOUNGE_STEP;
-    idleSpots.push({ x: Math.round(center - 54), y: couch.y - 8, kind: "couch", bottom: COUCH_BOTTOM + 2 });
+    const center = Math.round(couch.x + couch.w / 2 + (i - (couchN - 1) / 2) * LOUNGE_STEP);
+    couchCenters.push(center);
+    idleSpots.push({ x: center - 54, y: couch.y - 8, kind: "couch", bottom: COUCH_BOTTOM + 2 });
   }
   // The open floor above the couch: scattered spots, spaced so nobody
   // overlaps, tall enough for everyone who will not fit on the couch or at
@@ -215,11 +218,13 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // with the world's height: the pane's, or the content's if taller.
   const worldH = Math.max(contentH, h);
   const fromTop = (y) => Math.max(bandTop - 40, Math.round(worldH - y - PERSON_H));
-  idleSpots.push({ x: coffee.x - 4, bottom: fromTop(coffee.y + 18), kind: "coffee" });
+  // Beside the coffee table, not on it: the table spans the machine plus a
+  // few px either side, and a body is ~58 wide in the middle of its 108 box.
+  idleSpots.push({ x: coffee.x + coffee.w - 14, bottom: fromTop(coffee.y + 28), kind: "coffee" });
   for (const spot of floorSpots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
   // Where errands go: beside the coffee machine, in front of the shelf.
   const stands = {
-    coffee: { x: coffee.x + coffee.w - 18, bottom: fromTop(coffee.y + 18) },
+    coffee: { x: coffee.x + coffee.w + 38, bottom: fromTop(coffee.y + 28) },
     shelf: { x: Math.max(lounge.x - 10, shelf.x - 62), bottom: fromTop(shelf.y + 40) },
   };
 
@@ -347,6 +352,7 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     coffee,
     stands,
     worldH,
+    couchSeats: couchCenters,
     shelf,
     couch,
     board,

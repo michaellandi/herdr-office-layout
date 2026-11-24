@@ -77,7 +77,10 @@ console.log("helpers ok");
   }
   // A much taller measured pane (it can overstate) must not move them.
   const again = layoutFloor({ width: 1400, height: 1600, groups: g(many), loungeSeats: seatsL });
-  assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].bottom ?? again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].bottom ?? sc.spots[a].y]), "stable, whatever the measured height");
+  // The couch and the open floor do not depend on it (spots by the top
+  // furniture do, by design: they are measured from the top).
+  const low = many.filter((a) => sc.spots[a].seat === "couch" || sc.spots[a].seat === "floor");
+  assert.deepEqual(low.map((a) => [again.spots[a].x, again.spots[a].bottom]), low.map((a) => [sc.spots[a].x, sc.spots[a].bottom]), "couch and floor stable, whatever the measured height");
   console.log("lounge ok", kinds.join(","));
 }
 // Errands: now and then someone walks to the shelf, the coffee machine or

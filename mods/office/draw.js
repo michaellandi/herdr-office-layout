@@ -268,6 +268,12 @@ function personToken(person, spot, model, view) {
   return card.absolute().left(spot.x).top(spot.y).transition("left", pace).transition("top", pace);
 }
 
+// Still on their way somewhere (so a desk does not show their hands yet).
+function walkingNow(view, address) {
+  const w = view.walks && view.walks.get(address);
+  return !!w && Date.now() < w.at + w.delay + w.dur;
+}
+
 // How a person's latest move should be drawn: remembered per person so a
 // walk keeps its pace across redraws. Slow (WALK_SPEED units a second), each
 // person setting off after their own short delay so a crowd does not move as
@@ -287,11 +293,15 @@ function walkFor(view, address, spot, now) {
   if (prev.key !== key) {
     const dv = prev.frame === frame ? v - prev.v : 160;
     const dist = Math.hypot(spot.x - prev.x, dv);
-    const quick = prev.where === "desk" && spot.where === "desk";
+    // Only walks within the lounge are a slow stroll. Moves on the office
+    // floor (back to a desk after an approval, up to the front) stay brisk,
+    // and a desk drag is quicker still.
+    const stroll = prev.where === "lounge" && spot.where === "lounge";
+    const drag = prev.where === "desk" && spot.where === "desk";
     const w = {
       key, x: spot.x, v, frame, where: spot.where, at: now,
-      dur: quick ? 260 : Math.round(Math.min(8000, Math.max(1100, (dist / WALK_SPEED) * 1000))),
-      delay: quick ? 0 : fnv(`${address}|${key}`) % 1500,
+      dur: drag ? 260 : stroll ? Math.round(Math.min(8000, Math.max(1100, (dist / WALK_SPEED) * 1000))) : 900,
+      delay: stroll ? fnv(`${address}|${key}`) % 1500 : 0,
     };
     view.walks.set(address, w);
     return w;
@@ -427,7 +437,7 @@ function deskArt(desk, person, view, helpers = [], space = null) {
     .child(div().absolute().left(12).top(42).w(28).h(5).rounded(1).bg("#2a3140"))
     // Only once they have had time to walk over: the desk is drawn at once
     // but the person takes 900ms to get there.
-    .when(typing && person.statusMs >= 1000, (el) => el
+    .when(typing && person.statusMs >= 1000 && !walkingNow(view, person.address), (el) => el
       .child(div().id(`tapl-${id}`).absolute().left(12).w(9).h(5).rounded(3).bg(color).loop("top", { from: 40, to: 37, period: 260 }))
       .child(div().id(`tapr-${id}`).absolute().left(31).w(9).h(5).rounded(3).bg(color).loop("top", { from: 37, to: 40, period: 310 })))
     .child(div().absolute().left(6).top(50).w(152).h(22).rounded(2).bg(C.deskFront))
@@ -608,10 +618,9 @@ export function drawFloor(model, view) {
     .when(!!drag, (el) => el.cursor_grabbing())
     .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12)).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
     .child(div().absolute().left(scene.lounge.x + 12).top(scene.lounge.y + 8).text_size(10).font_weight(700).text_color(C.dim).child("LOUNGE"))
-    // Up from the bottom, like the couch (place.js): one frame for the lounge.
-    .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).bottom(scene.coffee.bottom).w(scene.coffee.w).h(scene.coffee.h))
-    .child(div().id("steam").absolute().left(scene.coffee.x + 16).bottom(scene.coffee.bottom + scene.coffee.h - 4).text_size(12).text_color("#9bb7c9").loop("opacity", { from: 0.15, to: 0.8, period: 1800 }).child("~"))
-    .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).bottom(scene.shelf.bottom).w(scene.shelf.w).h(scene.shelf.h))
+    .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).top(scene.coffee.y).w(scene.coffee.w).h(scene.coffee.h))
+    .child(div().id("steam").absolute().left(scene.coffee.x + 16).top(scene.coffee.y - 6).text_size(12).text_color("#9bb7c9").loop("opacity", { from: 0.15, to: 0.8, period: 1800 }).child("~"))
+    .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).top(scene.shelf.y).w(scene.shelf.w).h(scene.shelf.h))
     .child(image("mods/office/couch.svg").absolute().left(scene.couch.x)
       .when(scene.fits, (el) => el.bottom(COUCH_BOTTOM)).when(!scene.fits, (el) => el.top(scene.couch.y))
       .w(scene.couch.w).h(scene.couch.h));

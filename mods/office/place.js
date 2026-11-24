@@ -168,10 +168,10 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const couchSeats = Math.max(1, Math.floor((loungeW - 32) / LOUNGE_STEP));
   const overflow = Math.max(0, loungers - couchSeats - 1);
   const perRowGuess = Math.max(1, Math.floor((loungeW + 44 - PERSON_W) / SPACING) + 1);
-  // Couch, at least one row of open floor (more for overflow), then the
-  // coffee machine and shelf, then the LOUNGE label.
+  // The coffee machine and shelf at the top, then at least one row of open
+  // floor (more for overflow), then the couch at the bottom.
   const floorRows = Math.max(1, Math.ceil(overflow / perRowGuess));
-  const loungeNeed = COUCH_BOTTOM + 64 + PERSON_H + 60 + (floorRows - 1) * 86 + 6 + 96 + 34;
+  const loungeNeed = GAP + 150 + PERSON_H + 60 + (floorRows - 1) * 86 + 64 + COUCH_BOTTOM;
   const contentH = Math.max(loungeNeed, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
   const lounge = { x: GAP, y: GAP, w: loungeW, h: contentH - GAP * 2 };
   // The whole lounge is laid out up from the floor's bottom edge: the couch,
@@ -208,15 +208,18 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     floorSpots = scatterSpots({ x: lounge.x, y: base, w: lounge.w }, bandTop, Math.max(4, extra + 2));
     if (floorSpots.length >= extra) break;
   }
-  // The coffee machine and the shelf stand on the floor's far side.
-  coffee.bottom = bandTop + 6;
-  shelf.bottom = bandTop + 6;
-  idleSpots.push({ x: coffee.x - 4, bottom: coffee.bottom - 14, kind: "coffee" });
+  // The coffee machine and the shelf stay at the top of the lounge. People
+  // in the lounge are placed up from the bottom (so the measured height never
+  // pushes them off the floor), so a spot by the top furniture is converted
+  // with the world's height: the pane's, or the content's if taller.
+  const worldH = Math.max(contentH, h);
+  const fromTop = (y) => Math.max(bandTop - 40, Math.round(worldH - y - PERSON_H));
+  idleSpots.push({ x: coffee.x - 4, bottom: fromTop(coffee.y + 18), kind: "coffee" });
   for (const spot of floorSpots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
   // Where errands go: beside the coffee machine, in front of the shelf.
   const stands = {
-    coffee: { x: coffee.x + coffee.w - 18, bottom: coffee.bottom - 14 },
-    shelf: { x: Math.max(lounge.x - 10, shelf.x - 62), bottom: shelf.bottom - 14 },
+    coffee: { x: coffee.x + coffee.w - 18, bottom: fromTop(coffee.y + 18) },
+    shelf: { x: Math.max(lounge.x - 10, shelf.x - 62), bottom: fromTop(shelf.y + 40) },
   };
 
   const people = list.flatMap((group) => group.people);

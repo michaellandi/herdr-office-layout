@@ -24,20 +24,29 @@ const MOVES = new Set(["left", "top", "right", "bottom", "width", "height"]);
 
 const k = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * K * 100) / 100 : v);
 
+// Marked on each prototype, because Herdr reloads a mod in place on every
+// change: without the mark the patch would wrap the previous patch, and
+// every reload would multiply by K again. The originals are kept, so a new
+// K replaces the old one instead of stacking on it.
+const MARK = Symbol.for("herdr-office.scale");
+
 function patch(proto, done) {
   for (let p = proto; p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
     if (done.has(p)) continue;
     done.add(p);
+    const kept = p[MARK] || (Object.defineProperty(p, MARK, { value: {}, enumerable: false }), p[MARK]);
     for (const name of PIXELS) {
       if (!Object.prototype.hasOwnProperty.call(p, name)) continue;
-      const fn = p[name];
+      const fn = kept[name] || p[name];
       if (typeof fn !== "function") continue;
+      kept[name] = fn;
       p[name] = function scaled(v, ...rest) {
         return fn.call(this, k(v), ...rest);
       };
     }
     if (Object.prototype.hasOwnProperty.call(p, "loop") && typeof p.loop === "function") {
-      const loop = p.loop;
+      const loop = kept.loop || p.loop;
+      kept.loop = loop;
       p.loop = function scaledLoop(prop, policy, ...rest) {
         if (MOVES.has(prop) && policy && typeof policy === "object") {
           policy = { ...policy, from: k(policy.from), to: k(policy.to) };

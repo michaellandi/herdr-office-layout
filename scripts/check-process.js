@@ -129,6 +129,13 @@ console.log("helpers ok");
       }
     }
   }
+  // A short floor pane squeezes the lounge instead of scrolling: the content
+  // fits a 320px pane, so the couch at the bottom stays in view.
+  {
+    const few = ["s1", "s2", "s3"];
+    const sc = layoutFloor({ width: 1400, height: 320, groups: g(few), loungeW: 480 });
+    assert.ok(sc.contentH <= 320, `short pane fits (${sc.contentH})`);
+  }
   // Visits stay inside the lounge.
   {
     const lw = 220;

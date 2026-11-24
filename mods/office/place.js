@@ -171,8 +171,10 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const perRowGuess = Math.max(1, Math.floor((loungeW + 44 - PERSON_W) / SPACING) + 1);
   // The coffee machine and shelf at the top, then at least one row of open
   // floor (more for overflow), then the couch at the bottom.
-  const floorRows = Math.max(1, Math.ceil(overflow / perRowGuess));
-  const loungeNeed = GAP + 150 + PERSON_H + 60 + (floorRows - 1) * 86 + 64 + COUCH_BOTTOM;
+  // Only the furniture and the couch are a must: the open floor between them
+  // uses whatever height is left, so a short floor pane does not scroll the
+  // couch out of view.
+  const loungeNeed = GAP + 150 + 64 + COUCH_BOTTOM + 30;
   const contentH = Math.max(loungeNeed, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
   const lounge = { x: GAP, y: GAP, w: loungeW, h: contentH - GAP * 2 };
   // The whole lounge is laid out up from the floor's bottom edge: the couch,
@@ -209,13 +211,8 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // top, not just a strip above the couch, so people do not cluster low.
   const worldH = Math.max(contentH, h);
   const underFurniture = Math.round(worldH - (lounge.y + 150));
-  let bandTop = base + PERSON_H + 60;
-  let floorSpots = [];
-  for (let rows = Math.max(1, Math.ceil(extra / perRow)); rows <= 12; rows += 1) {
-    bandTop = Math.max(base + PERSON_H + 60 + (rows - 1) * 86, underFurniture);
-    floorSpots = scatterSpots({ x: lounge.x, y: base + 20, w: lounge.w }, bandTop, Math.max(4, extra + 2));
-    if (floorSpots.length >= extra) break;
-  }
+  const bandTop = Math.max(base, underFurniture);
+  const floorSpots = scatterSpots({ x: lounge.x, y: base + 20, w: lounge.w }, bandTop, Math.max(4, extra + 2));
   // The coffee machine and the shelf stay at the top of the lounge. People
   // in the lounge are placed up from the bottom (so the measured height never
   // pushes them off the floor), so a spot by the top furniture is converted

@@ -1,5 +1,5 @@
 // First: scales this mod's builders (see scale.js).
-import { K, setScale } from "./scale.js";
+import { K, MIN_K, setScale } from "./scale.js";
 import { div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, Input } from "gpui-base";
 import { run, shared, setShared, window as osWindow } from "herdr";
@@ -633,12 +633,25 @@ export function drawFloor(model, view) {
   // floor shrinks (down to MIN_K) until it fits, and grows back when there
   // is room. Twice, because a smaller scale fits more desks per row.
   const lay = (k) => layoutFloor({ width: view.width / k, height: view.height / k, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats, wander: { now: Date.now(), asleep: (address) => activityOf(address) === "nap" } });
-  let k = setScale(K);
-  let scene = lay(k);
-  for (let pass = 0; pass < 2 && scene.contentH * k > view.height + 1; pass += 1) {
-    k = setScale(view.height / scene.contentH);
-    scene = lay(k);
+  // The largest scale that fits: a smaller scale can fit more desks per row
+  // and need fewer rows, so "shrink by the overflow" overshoots. A short
+  // binary search over [MIN_K, K] finds the biggest one that fits.
+  const fits = (k) => { const sc = lay(k); return { sc, ok: sc.contentH * k <= view.height + 1 }; };
+  let k = K;
+  let best = fits(K);
+  if (!best.ok) {
+    let lo = MIN_K;
+    let hi = K;
+    let found = null;
+    for (let i = 0; i < 7; i += 1) {
+      const mid = (lo + hi) / 2;
+      const t = fits(mid);
+      if (t.ok) { found = { k: mid, t }; lo = mid; } else hi = mid;
+    }
+    if (found) { k = found.k; best = found.t; } else { k = MIN_K; best = fits(MIN_K); }
   }
+  k = setScale(k);
+  let scene = best.sc;
   view.scaleNow = k;
   view.scene = scene;
   const drag = view.deskDrag;

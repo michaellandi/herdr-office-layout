@@ -180,3 +180,17 @@ console.log("helpers ok");
   assert.equal(new Set(Object.values(after)).size, 3, "b is given another look, still unique");
   console.log("look pick ok");
 }
+{
+  const { oneConversation, ROUND_MS } = await import("../mods/office/chatter.js");
+  const couchP = [["a", "b"], ["c", "d"], ["e", "f"]];
+  const picked = new Set();
+  for (let r = 0; r < 6; r += 1) {
+    const p = oneConversation([], couchP, r * ROUND_MS + 5);
+    assert.ok(p && couchP.includes(p), "one couch pair per round");
+    picked.add(p[0]);
+  }
+  assert.equal(picked.size, 3, "couch pairs take turns");
+  assert.deepEqual(oneConversation([["v", "h"]], couchP, 7), ["v", "h"], "a visit goes first");
+  assert.equal(oneConversation([], [], 7), null);
+  console.log("one conversation ok");
+}

@@ -8,7 +8,7 @@ import {
 } from "herdr";
 import { officeStatus } from "./theme.js";
 import { assignCasts, castByIndex, castIndex, helperCast } from "./identity.js";
-import { assignSeats } from "./seats.js";
+import { assignSeats, moveSeat } from "./seats.js";
 import { assignRooms } from "./rooms.js";
 import { buildPeople, groupsOf, cwdKey, withShells, helpersByParent } from "./people.js";
 import { dirtArgs, countDirt } from "./dirt.js";
@@ -69,6 +69,11 @@ export default class Office extends View {
     this.selected = null;
     this.loungeW = null;
     this.loungeSeats = new Map();
+    // Desk drag: a press on a desk, then a drag once it has moved 6px.
+    this.deskPress = null;
+    this.deskDrag = null;
+    this.dragClick = false;
+    this.scene = null;
     // The card's own keyboard target: Y / N / S / A answer, Esc closes.
     this.cardFocus = this.role === "floor" && cx && typeof cx.focus_handle === "function" ? cx.focus_handle() : null;
     this.drag = null;
@@ -446,6 +451,60 @@ export default class Office extends View {
     writeJson(SEAT_STORE, this.seats || {});
     writeJson(SINCE_STORE, { day: dayKey(), entries: this.since || {} });
     if (this.clocks) writeJson(PUNCH_STORE, { day: dayKey(), snapshot: this.clocks.snapshot() });
+  }
+
+  // Dragging a desk to another seat in its space. Office-only order: the
+  // seat numbers in local storage, nothing in Herdr changes. Pointer
+  // positions come from the floor's world element, in drawn pixels, and the
+  // layout is in unscaled units, hence / K.
+  pressDesk(address, space, e) {
+    this.dragClick = false;
+    this.deskPress = { address, space, x: e?.position?.x ?? 0, y: e?.position?.y ?? 0 };
+  }
+
+  moveDesk(e, cx) {
+    const press = this.deskPress;
+    if (!press) return;
+    const x = e?.position?.x;
+    const y = e?.position?.y;
+    if (!this.deskDrag && Math.hypot((x ?? 0) - press.x, (y ?? 0) - press.y) < 6) return;
+    const lx = (e?.local_position?.x ?? 0) / K;
+    const ly = (e?.local_position?.y ?? 0) / K;
+    let over = null;
+    const rug = this.scene && this.scene.rugs.find((r) => r.id === press.space);
+    if (rug) {
+      const hit = rug.desks.find((d) => lx >= d.x && lx < d.x + d.w && ly >= d.y && ly < d.y + d.h);
+      over = hit ? hit.address : null;
+    }
+    this.deskDrag = { address: press.address, space: press.space, x: lx, y: ly, over, outside: !rug || (!over && !(rug && lx >= rug.x && lx < rug.x + rug.w && ly >= rug.y && ly < rug.y + rug.h)) };
+    cx.notify();
+  }
+
+  dropDesk(cx) {
+    const drag = this.deskDrag;
+    this.deskPress = null;
+    if (!drag) return;
+    this.deskDrag = null;
+    this.dragClick = true;
+    if (drag.over && drag.over !== drag.address) {
+      this.seats = moveSeat(this.seats, drag.space, drag.address, drag.over);
+      writeJson(SEAT_STORE, this.seats);
+    }
+    if (cx) cx.notify();
+  }
+
+  cancelDeskDrag(cx) {
+    if (!this.deskPress && !this.deskDrag) return;
+    this.deskPress = null;
+    this.deskDrag = null;
+    if (cx) cx.notify();
+  }
+
+  // The release at the end of a drag is not also a click.
+  consumeDragClick() {
+    if (!this.dragClick) return false;
+    this.dragClick = false;
+    return true;
   }
 
   // Dragging the lounge edge. Positions are window coordinates; only the

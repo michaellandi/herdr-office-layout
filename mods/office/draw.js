@@ -252,7 +252,9 @@ function personToken(person, spot, model, view) {
     .w(108).items_center().cursor_pointer()
     .transition("left", { duration: 900, easing: "ease-in-out" })
     .transition("top", { duration: 900, easing: "ease-in-out" })
-    .on_click((_e, cx) => { cx.stop_propagation(); view.focusAgent(person.address, cx); })
+    // Seated people are part of their desk: pressing them drags it too.
+    .when(seated, (el) => el.on_mouse_down("left", (e, _cx) => view.pressDesk(person.address, person.space, e)))
+    .on_click((_e, cx) => { cx.stop_propagation(); if (view.consumeDragClick()) return; view.focusAgent(person.address, cx); })
     .when(blocked, (el) => el.child(bubble(person)))
     .when(!!spot.talk, (el) => el.child(
       div().absolute().top(-24).left(0).w(108).flex().justify_center()
@@ -353,15 +355,21 @@ function helperBlob(helper, i, view, more = 0) {
 }
 
 
-function deskArt(desk, person, view, helpers = []) {
+function deskArt(desk, person, view, helpers = [], space = null) {
   const st = statusOf(person.status);
   const typing = person.status === "working";
   const here = typing || person.status === "shell";
   const id = safeId(person.address);
   const color = castBody(person.cast);
   const [propA, propB] = deskProps(person.address);
+  const dragging = view.deskDrag && view.deskDrag.address === person.address;
   return div().id(`desk-${id}`).absolute().left(desk.x + 4).top(desk.y + 4).w(164).h(128).cursor_pointer()
-    .on_click((_e, cx) => { cx.stop_propagation(); view.focusAgent(person.address, cx); })
+    // Desks slide to their new seat after a drop.
+    .transition("left", { duration: 260, easing: "ease-in-out" })
+    .transition("top", { duration: 260, easing: "ease-in-out" })
+    .when(dragging, (el) => el.opacity(0.45))
+    .on_mouse_down("left", (e, _cx) => view.pressDesk(person.address, space, e))
+    .on_click((_e, cx) => { cx.stop_propagation(); if (view.consumeDragClick()) return; view.focusAgent(person.address, cx); })
     // Their pane has the keyboard: Herdr's own focus color, as on the pane
     // border below. On screen but not focused (a split tab): a faint outline.
     .when(person.focused || person.shown, (el) => el.child(div().absolute().left(-14).top(-18).w(192).h(148).rounded(12)
@@ -554,9 +562,15 @@ function wideKey(id, label, color, action) {
 export function drawFloor(model, view) {
   // Layout works in unscaled units; the builders scale everything by K.
   const scene = layoutFloor({ width: view.width / K, height: view.height / K, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats });
+  view.scene = scene;
+  const drag = view.deskDrag;
   // At least the pane's height (min_h_full) and at least the content's, so
   // the bottom-anchored lounge, couch and rugs always have a real bottom.
   const world = div().id("office-world").relative().w_full().min_h_full().h(scene.contentH)
+    .on_mouse_move((e, cx) => view.moveDesk(e, cx))
+    .on_mouse_up("left", (_e, cx) => view.dropDesk(cx))
+    .on_hover((on, cx) => { if (!on) view.cancelDeskDrag(cx); })
+    .when(!!drag, (el) => el.cursor_grabbing())
     .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12)).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
     .child(div().absolute().left(scene.lounge.x + 12).top(scene.lounge.y + 8).text_size(10).font_weight(700).text_color(C.dim).child("LOUNGE"))
     .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).top(scene.coffee.y).w(scene.coffee.w).h(scene.coffee.h))
@@ -581,7 +595,22 @@ export function drawFloor(model, view) {
   for (const rug of scene.rugs) {
     for (const desk of rug.desks) {
       const person = model.visible.find((p) => p.address === desk.address);
-      if (person) world.child(deskArt(desk, person, view, model.helpers ? model.helpers.get(person.address) || [] : []));
+      if (person) world.child(deskArt(desk, person, view, model.helpers ? model.helpers.get(person.address) || [] : [], rug.id));
+    }
+  }
+  // Where a dragged desk would go: the target seat outlined, and the name
+  // following the pointer.
+  if (drag) {
+    const target = scene.rugs.flatMap((r) => r.desks).find((d) => d.address === drag.over && d.address !== drag.address);
+    if (target) {
+      world.child(div().absolute().left(target.x - 6).top(target.y - 10).w(target.w).h(target.h - 4).rounded(12)
+        .border(2).border_color("#8ee0a8").bg("#8ee0a814"));
+    }
+    const who = model.visible.find((p) => p.address === drag.address);
+    if (who) {
+      world.child(div().absolute().left(drag.x + 10).top(drag.y + 8).px(8).h(20).flex().items_center().rounded(10)
+        .bg("#141a24").border(1).border_color(drag.outside ? "#f0a0a0" : "#8ee0a8")
+        .text_size(11).font_weight(700).text_color(C.ink).child(drag.outside ? `${who.name} · stays in its space` : who.name));
     }
   }
   // Pairs on the couch get a script; the first talks, the second answers.
@@ -613,7 +642,7 @@ export function drawFloor(model, view) {
   // Clicking empty floor puts the card away; people and desks stop the click.
   const root = div().id("office-floor").relative().size_full().bg(C.floor)
     .on_size_change((size, cx) => view.resized(size, cx))
-    .on_click((_e, cx) => { if (!view.endLoungeDrag(cx)) view.clear(cx); })
+    .on_click((_e, cx) => { if (view.consumeDragClick()) return; if (!view.endLoungeDrag(cx)) view.clear(cx); })
     .on_mouse_move((e, cx) => view.moveLoungeDrag(e, cx))
     .on_mouse_up("left", (_e, cx) => view.endLoungeDrag(cx))
     .child(div().size_full().overflow_y_scrollbar().child(world));

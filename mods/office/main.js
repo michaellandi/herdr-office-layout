@@ -758,9 +758,22 @@ export default class Office extends View {
   }
 
   // Herdr's own rename prompt for that person's tab.
+  // Herdr's own rename prompt, opened with the current name filled in (and
+  // selected), so editing starts from it. Save runs the rename command.
+  askName(title, value, command, hint) {
+    openOverlay({
+      mod: "prompt",
+      props: { title, value: value || "", hint, command },
+      kind: "dialog",
+      width: 420,
+    });
+  }
+
   renameTab(address, cx) {
     const person = this.personOf(address);
-    if (person?.tab) run("tab.rename", { id: person.tab });
+    if (person?.tab && !demoOn()) {
+      this.askName("Rename tab", person.tabName, { name: "tab.rename", args: { id: person.tab } }, "Empty: called by its number again.");
+    }
     if (cx) cx.notify();
   }
 

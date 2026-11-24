@@ -96,7 +96,7 @@ export function drawSpaces(view) {
   const rows = spaces().map((space, i) => {
     const st = space.status ? statusOf(space.status) : null;
     return stop(h_flex().id(`pick-space-${safeId(space.id)}`).h(30).px(10).gap(8).items_center().rounded(6).cursor_pointer()
-      .bg(space.active ? "#2a3344" : "transparent")
+      .bg(space.active ? "#2a3344" : "#00000000")
       .hover((s) => s.bg("#33405a"))
       .on_click(() => view.pickSpace(space.id))
       .child(div().size(7).rounded(4).bg(st ? st.fg : C.faint))
@@ -419,7 +419,7 @@ function deskArt(desk, person, view, helpers = [], space = null) {
     // border below. On screen but not focused (a split tab): a faint outline.
     .when(person.focused || person.shown, (el) => el.child(div().absolute().left(-14).top(-18).w(192).h(148).rounded(12)
       .border(person.focused ? 2 : 1).border_color(person.focused ? FOCUS : "#4a5566")
-      .bg(person.focused ? "#e0a15a12" : "transparent")))
+      .bg(person.focused ? "#e0a15a12" : "#00000000")))
     .child(div().absolute().left(68).top(0).w(66).h(36).rounded(3).bg(C.screen).border(2).border_color(here ? st.fg : C.faint)
       .px(3).py(3).overflow_hidden()
       .child(monitorText(person, id)))
@@ -599,7 +599,7 @@ function lookRow(person, view) {
     .child(h_flex().flex_1().gap(2).children(CAST.map((cast, i) => {
       const on = cast.id === person.cast;
       return stop(div().id(`look-${safeId(person.address)}-${cast.id}`).w(24).h(26).rounded(6).cursor_pointer()
-        .border(on ? 2 : 1).border_color(on ? C.ink : "transparent")
+        .border(on ? 2 : 1).border_color(on ? C.ink : "#00000000")
         .hover((s2) => s2.bg("#2a3344"))
         .on_click((_e, cx) => { cx.stop_propagation(); view.pickLook(person.address, i, cx); })
         .child(image(`mods/office/${cast.id}-sit.svg`).w(20).h(23).ml(1)));
@@ -634,8 +634,18 @@ export function drawFloor(model, view) {
     .when(!!drag, (el) => el.cursor_grabbing())
     .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12)).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
     .child(div().absolute().left(scene.lounge.x + 12).top(scene.lounge.y + 8).text_size(10).font_weight(700).text_color(C.dim).child("LOUNGE"))
+    // The coffee machine stands on a small table.
+    .child(div().absolute().left(scene.coffee.x - 6).top(scene.coffee.y + scene.coffee.h - 6).w(scene.coffee.w + 12).h(7).rounded(2).bg(C.desk))
+    .child(div().absolute().left(scene.coffee.x - 2).top(scene.coffee.y + scene.coffee.h + 1).w(5).h(26).bg(C.deskFront))
+    .child(div().absolute().left(scene.coffee.x + scene.coffee.w - 3).top(scene.coffee.y + scene.coffee.h + 1).w(5).h(26).bg(C.deskFront))
     .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).top(scene.coffee.y).w(scene.coffee.w).h(scene.coffee.h))
-    .child(div().id("steam").absolute().left(scene.coffee.x + 16).top(scene.coffee.y - 6).text_size(12).text_color("#9bb7c9").loop("opacity", { from: 0.15, to: 0.8, period: 1800 }).child("~"))
+    // Steam off the mug: two soft wisps that rise and fade, out of step.
+    .child(div().id("steam-a").absolute().left(scene.coffee.x + 12).w(3).h(7).rounded(2).bg("#9bb7c9")
+      .loop("top", { from: scene.coffee.y + 54, to: scene.coffee.y + 42, period: 2200 })
+      .loop("opacity", { from: 0.6, to: 0, period: 2200 }))
+    .child(div().id("steam-b").absolute().left(scene.coffee.x + 17).w(3).h(6).rounded(2).bg("#9bb7c9")
+      .loop("top", { from: scene.coffee.y + 52, to: scene.coffee.y + 38, period: 2900 })
+      .loop("opacity", { from: 0.5, to: 0, period: 2900 }))
     .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).top(scene.shelf.y).w(scene.shelf.w).h(scene.shelf.h))
     .child(image("mods/office/couch.svg").absolute().left(scene.couch.x)
       .when(scene.fits, (el) => el.bottom(COUCH_BOTTOM)).when(!scene.fits, (el) => el.top(scene.couch.y))

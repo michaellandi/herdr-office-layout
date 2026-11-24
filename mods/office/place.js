@@ -5,6 +5,7 @@
 // with a raised hand. Unsure ones stand by the bookshelf. The desk stays put.
 
 import { errands } from "./wander.js";
+import { fnv } from "./text.js";
 
 const GAP = 12;
 // Centre-to-centre distance between people on the couch.
@@ -264,6 +265,22 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const runs = wander ? errands(awake, awake, wander.now) : new Map();
   const visitedBy = new Map();
   for (const [address, e] of runs) if (e.away && e.kind === "visit" && e.with) visitedBy.set(e.with, address);
+  // Coming back from an errand, people often sit somewhere new rather than
+  // right back where they were: a free couch seat or floor spot, chosen once
+  // per round and kept (it becomes their seat), so nobody bounces back.
+  if (!seatOf.moved) seatOf.moved = new Map();
+  const roundOf = (address) => Math.floor((wander ? wander.now : 0) / 36000 + (fnv(`${address}|offset`) % 36000) / 36000);
+  for (const person of idle) {
+    const run = runs.get(person.address);
+    if (!run || run.away) continue;
+    const n = roundOf(person.address);
+    if (seatOf.moved.get(person.address) === n) continue;
+    seatOf.moved.set(person.address, n);
+    if (fnv(`${person.address}|resit|${n}`) % 3 === 0) continue;
+    const held = new Set([...seatOf.values()]);
+    const free = idleSpots.map((_, i) => i).filter((i) => !held.has(i) && idleSpots[i].kind !== "coffee");
+    if (free.length) seatOf.set(person.address, free[fnv(`${person.address}|where|${n}`) % free.length]);
+  }
   idle.forEach((person) => {
     const home = homeOf(person);
     const run = runs.get(person.address) || null;

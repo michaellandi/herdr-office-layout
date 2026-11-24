@@ -798,11 +798,12 @@ export default class Office extends View {
   // the card and the pane header show. An empty name gives the cast name back.
   renameAgent(address, cx) {
     const person = this.personOf(address);
-    if (person?.pane && !demoOn()) run("pane.rename", { pane: person.pane });
+    if (person?.pane && !demoOn()) {
+      this.askName("Rename agent", person.name, { name: "pane.rename", args: { pane: person.pane } }, `Empty: ${person.castName} again.`);
+    }
     if (cx) cx.notify();
   }
 
-  // Herdr's own rename prompt for that person's tab.
   // Herdr's own rename prompt, opened with the current name filled in (and
   // selected), so editing starts from it. Save runs the rename command.
   askName(title, value, command, hint) {

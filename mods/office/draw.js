@@ -5,7 +5,7 @@ import { h_flex, v_flex, Input } from "gpui-base";
 import { run, shared, setShared, window as osWindow } from "herdr";
 import { agents, spaces, panes } from "./source.js";
 import { C, statusOf, officeStatus } from "./theme.js";
-import { truncate, formatDuration, formatChip, safeId, dirBase } from "./text.js";
+import { truncate, formatDuration, formatChip, safeId, dirBase, fnv } from "./text.js";
 import { dirtWords, dirtBadge } from "./dirt.js";
 import { headWords, headBadge, pressure, HEAD_TINT } from "./head.js";
 import { layoutFloor, COUCH_BOTTOM } from "./place.js";
@@ -135,10 +135,6 @@ function windowButtons(os) {
 export function drawRail(view) {
   const active = spaces().find((s) => s.active);
   const tab = active?.tabs?.find((t) => t.active);
-  const notices = Array.isArray(shared("office.notices")) ? shared("office.notices") : [];
-  const index = notices.length ? (view.notice || 0) % notices.length : 0;
-  const notice = notices[index];
-  const send = shared("office.allowSend") === true;
   return h_flex().id("office-rail").size_full().items_center().px(10).gap(8).bg(C.header)
     .child(div().text_size(12).text_color(C.soft).child(`${truncate(active?.name || "space", 18)}  /  ${truncate(tab?.name || "tab", 18)}`))
     .child(Input.new(view.filterInput).id("office-filter").w(280).h(24).px(8).rounded(6).border(1).border_color(C.line).bg("#10151c").text_size(12).text_color(C.ink))
@@ -148,14 +144,7 @@ export function drawRail(view) {
     .child(stop(div().id("standup-btn").px(10).h(24).flex().items_center().rounded(6).bg(C.chip).text_size(12).font_weight(600).text_color(C.ink).cursor_pointer()
       .on_click(() => view.openStandup())
       .child("Standup")))
-    .child(div().flex_1().truncate().text_size(12).text_color(notice ? C.bubbleInk : C.dim).cursor_pointer()
-      .on_click((_e, cx) => {
-        if (!notice) return;
-        view.notice = (index + 1) % Math.max(1, notices.length);
-        if (notice.id) run("agent.focus", { terminal: notice.id });
-        cx.notify();
-      })
-      .child(notice ? notice.text : (send ? "answers send keystrokes" : "focus only · sending is off")))
+    .child(div().flex_1())
     .child(div().text_size(11).text_color(C.dim).child(`${withShells(agents(), panes(), spaces()).length} desks`));
 }
 
@@ -229,7 +218,10 @@ function personToken(person, spot, model, view) {
   // At the desk the hands are on the keyboard (deskArt), so the body is drawn
   // without its resting arms; otherwise there would be four hands.
   const lounging = spot.where === "lounge";
-  const activity = lounging ? activityOf(person.address) : null;
+  // On an errand they hold what they went for (a book from the shelf, a
+  // coffee from the machine); otherwise their usual lounge activity.
+  const activity = !lounging ? null : spot.errand ? spot.errand.carry || null : activityOf(person.address);
+  const walking = !!spot.walk && spot.walk.moving;
   const pose = blocked ? "wave"
     : seated && person.status === "working" ? "type"
       : lounging ? (activity === "nap" ? "doze" : "sit")
@@ -240,35 +232,71 @@ function personToken(person, spot, model, view) {
   const body = div().id(`bob-${id}`).relative().w(Math.round(72 * scale)).h(Math.round(80 * scale))
     .loop("top", blocked
       ? { from: 0, to: -10, period: 620 }
-      : person.status === "working"
+      : walking
+        ? { from: 0, to: -4, period: 440 }
+        : person.status === "working"
         ? { from: 0, to: 2, period: 520 }
         : { from: 0, to: 3, period: 2800 })
     .when(blocked, (el) => el.child(wavingArm(person, id)))
     .child(image(`mods/office/${person.cast}-${pose}.svg`).absolute().left(Math.round(2 * scale)).top(0).w(Math.round(68 * scale)).h(Math.round(80 * scale)))
     // Held in front of the body, so drawn after it.
     .when(!!activity && activity !== "nap", (el) => el.child(activityProp(activity, id)));
-  return v_flex().id(`who-${id}`).absolute().left(spot.x)
-    .when(spot.bottom != null, (el) => el.bottom(spot.bottom)).when(spot.bottom == null, (el) => el.top(spot.y))
+  // A walk: as long as the distance needs at a stroll, after a small delay
+  // of their own (see walkFor), the same for both axes so the path is straight.
+  const pace = { duration: spot.walk ? spot.walk.dur : 900, delay: spot.walk ? spot.walk.delay : 0, easing: "ease-in-out" };
+  const card = v_flex().id(spot.bottom != null ? `whoin-${id}` : `who-${id}`)
     .w(108).items_center().cursor_pointer()
-    .transition("left", { duration: 900, easing: "ease-in-out" })
-    .transition("top", { duration: 900, easing: "ease-in-out" })
     // Seated people are part of their desk: pressing them drags it too.
     .when(seated, (el) => el
       .on_mouse_down("left", (e, _cx) => view.pressDesk(person.address, person.space, e))
       .on_mouse_up("left", (_e, cx) => view.dropDesk(cx)))
     .on_click((_e, cx) => { cx.stop_propagation(); if (view.consumeDragClick()) return; view.focusAgent(person.address, cx); })
     .when(blocked, (el) => el.child(bubble(person)))
-    .when(!!spot.talk, (el) => el.child(
-      div().absolute().top(-24).left(0).w(108).flex().justify_center()
-        .child(div().px(7).py(3).rounded(9).bg("#f4f1ea").border(1).border_color("#c9c2b4")
-          .text_size(10).font_weight(600).text_color("#2a2418").whitespace_nowrap()
-          .child(spot.talk)),
-    ))
     .child(body)
     // Just the name off the desk: the tab name is already under their desk
     // (deskArt), and seated people have both there instead.
     .when(!seated, (el) => el
       .child(nameTag(person, model.selected?.address === person.address)));
+  // Lounge spots are measured up from the floor's bottom. "bottom" cannot be
+  // animated, so the token sits on the bottom edge and is lifted by a
+  // relative top offset, which can.
+  if (spot.bottom != null) {
+    return div().id(`who-${id}`).absolute().left(spot.x).bottom(0).w(108)
+      .transition("left", pace)
+      .child(card.relative().top(-spot.bottom).transition("top", pace));
+  }
+  return card.absolute().left(spot.x).top(spot.y).transition("left", pace).transition("top", pace);
+}
+
+// How a person's latest move should be drawn: remembered per person so a
+// walk keeps its pace across redraws. Slow (WALK_SPEED units a second), each
+// person setting off after their own short delay so a crowd does not move as
+// one. Desk-to-desk moves (a drag) stay quick.
+const WALK_SPEED = 55;
+function walkFor(view, address, spot, now) {
+  if (!view.walks) view.walks = new Map();
+  const frame = spot.bottom != null ? "b" : "t";
+  const v = frame === "b" ? spot.bottom : spot.y;
+  const key = `${frame}|${Math.round(spot.x)}|${Math.round(v)}`;
+  const prev = view.walks.get(address);
+  if (!prev) {
+    const w = { key, x: spot.x, v, frame, where: spot.where, dur: 900, delay: 0, at: now - 10000 };
+    view.walks.set(address, w);
+    return w;
+  }
+  if (prev.key !== key) {
+    const dv = prev.frame === frame ? v - prev.v : 160;
+    const dist = Math.hypot(spot.x - prev.x, dv);
+    const quick = prev.where === "desk" && spot.where === "desk";
+    const w = {
+      key, x: spot.x, v, frame, where: spot.where, at: now,
+      dur: quick ? 260 : Math.round(Math.min(8000, Math.max(1100, (dist / WALK_SPEED) * 1000))),
+      delay: quick ? 0 : fnv(`${address}|${key}`) % 1500,
+    };
+    view.walks.set(address, w);
+    return w;
+  }
+  return prev;
 }
 
 // Two rows of twelve cells, the TUI's monitor. A working desk whose job is
@@ -568,7 +596,7 @@ function wideKey(id, label, color, action) {
 
 export function drawFloor(model, view) {
   // Layout works in unscaled units; the builders scale everything by K.
-  const scene = layoutFloor({ width: view.width / K, height: view.height / K, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats });
+  const scene = layoutFloor({ width: view.width / K, height: view.height / K, groups: model.groups, loungeW: view.loungeW, loungeSeats: view.loungeSeats, wander: { now: Date.now(), asleep: (address) => activityOf(address) === "nap" } });
   view.scene = scene;
   const drag = view.deskDrag;
   // At least the pane's height (min_h_full) and at least the content's, so
@@ -580,9 +608,10 @@ export function drawFloor(model, view) {
     .when(!!drag, (el) => el.cursor_grabbing())
     .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12)).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
     .child(div().absolute().left(scene.lounge.x + 12).top(scene.lounge.y + 8).text_size(10).font_weight(700).text_color(C.dim).child("LOUNGE"))
-    .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).top(scene.coffee.y).w(scene.coffee.w).h(scene.coffee.h))
-    .child(div().id("steam").absolute().left(scene.coffee.x + 16).top(scene.coffee.y - 6).text_size(12).text_color("#9bb7c9").loop("opacity", { from: 0.15, to: 0.8, period: 1800 }).child("~"))
-    .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).top(scene.shelf.y).w(scene.shelf.w).h(scene.shelf.h))
+    // Up from the bottom, like the couch (place.js): one frame for the lounge.
+    .child(image("mods/office/coffee.svg").absolute().left(scene.coffee.x).bottom(scene.coffee.bottom).w(scene.coffee.w).h(scene.coffee.h))
+    .child(div().id("steam").absolute().left(scene.coffee.x + 16).bottom(scene.coffee.bottom + scene.coffee.h - 4).text_size(12).text_color("#9bb7c9").loop("opacity", { from: 0.15, to: 0.8, period: 1800 }).child("~"))
+    .child(image("mods/office/shelf.svg").absolute().left(scene.shelf.x).bottom(scene.shelf.bottom).w(scene.shelf.w).h(scene.shelf.h))
     .child(image("mods/office/couch.svg").absolute().left(scene.couch.x)
       .when(scene.fits, (el) => el.bottom(COUCH_BOTTOM)).when(!scene.fits, (el) => el.top(scene.couch.y))
       .w(scene.couch.w).h(scene.couch.h));
@@ -596,8 +625,13 @@ export function drawFloor(model, view) {
   }
   // Seated people go down before the desks so the desk is drawn in front of them.
   const seated = (person) => scene.spots[person.address]?.where === "desk";
+  const nowMs = Date.now();
+  const walking = (person, spot) => {
+    const w = walkFor(view, person.address, spot, nowMs);
+    return { ...w, moving: nowMs < w.at + w.delay + w.dur };
+  };
   for (const person of model.visible) {
-    if (seated(person)) world.child(personToken(person, scene.spots[person.address], model, view));
+    if (seated(person)) world.child(personToken(person, { ...scene.spots[person.address], walk: walking(person, scene.spots[person.address]) }, model, view));
   }
   for (const rug of scene.rugs) {
     for (const desk of rug.desks) {
@@ -608,16 +642,46 @@ export function drawFloor(model, view) {
   // Pairs on the couch get a script; the first talks, the second answers.
   // Neighbours by seat number, not list order, so the pairs match who is
   // actually sitting together.
-  const couch = model.visible.filter((p) => scene.spots[p.address]?.seat === "couch")
+  // A visit is a chat: the visitor talks first, whoever they went to answers.
+  const chatting = new Set();
+  for (const person of model.visible) {
+    const spot = scene.spots[person.address];
+    if (!spot || !spot.talkWith || chatting.has(person.address)) continue;
+    const visitor = spot.errand && spot.errand.away ? person.address : spot.talkWith;
+    const host = visitor === person.address ? spot.talkWith : person.address;
+    if (!scene.spots[visitor] || !scene.spots[host]) continue;
+    const script = pickScript(visitor, host);
+    scene.spots[visitor] = { ...scene.spots[visitor], talk: chatLine(script, 0) };
+    scene.spots[host] = { ...scene.spots[host], talk: chatLine(script, 1) };
+    chatting.add(visitor);
+    chatting.add(host);
+  }
+  const couch = model.visible.filter((p) => scene.spots[p.address]?.seat === "couch" && !chatting.has(p.address))
     .sort((a, b) => scene.spots[a.address].chat - scene.spots[b.address].chat);
   for (let i = 0; i + 1 < couch.length; i += 2) {
     const script = pickScript(couch[i].address, couch[i + 1].address);
     scene.spots[couch[i].address] = { ...scene.spots[couch[i].address], talk: chatLine(script, 0) };
     scene.spots[couch[i + 1].address] = { ...scene.spots[couch[i + 1].address], talk: chatLine(script, 1) };
   }
+  const talkers = [];
   for (const person of model.visible) {
     const spot = scene.spots[person.address];
-    if (spot && !seated(person)) world.child(personToken(person, spot, model, view));
+    if (!spot || seated(person)) continue;
+    const walk = walking(person, spot);
+    world.child(personToken(person, { ...spot, walk }, model, view));
+    if (spot.talk && !walk.moving && spot.bottom != null) talkers.push({ person, spot });
+  }
+  // Speech on top of everyone, so a neighbour or a name tag never covers it.
+  // The bubble is edged in the speaker's own color with a tail down to them.
+  for (const { person, spot } of talkers) {
+    const color = castBody(person.cast);
+    world.child(div().absolute().left(spot.x - 36).bottom(spot.bottom + 86).w(180).flex().justify_center()
+      .child(div().relative().px(8).py(3).rounded(9).bg("#f4f1ea").border(2).border_color(color)
+        .text_size(10).font_weight(600).text_color("#2a2418").whitespace_nowrap()
+        .child(spot.talk)
+        // The tail, part of the bubble so the two never come apart.
+        .child(div().absolute().bottom(-6).left(0).right(0).flex().justify_center()
+          .child(div().w(10).h(6).bg(color).rounded(3)))));
   }
   // Drag handle on the lounge's right edge. Drawn last so the people at the
   // first desk, whose boxes overlap this edge, do not swallow the press.

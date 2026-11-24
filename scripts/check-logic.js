@@ -165,3 +165,38 @@ import("../mods/office/people.js").then(({ withShells }) => {
   assert.equal(got[1].tab_name, "web");
   console.log("logic ok");
 });
+
+// A renamed agent (pane.rename) goes by that name; the cast name stays for
+// looks and filtering, and a blank or control-character name falls back.
+{
+  const { buildPeople, personName } = await import("../mods/office/people.js");
+  const cast = CAST[0];
+  assert.equal(personName({}, { name: "Reviewer" }, cast), "Reviewer");
+  assert.equal(personName({ pane_name: "Lint bot" }, null, cast), "Lint bot");
+  assert.equal(personName({}, { name: "   " }, cast), cast.name);
+  assert.equal(personName({}, null, cast), cast.name);
+  const people = buildPeople({
+    agents: [{ address: "t1", pane: "p1", space: "s1", tab: "x1", status: "working", program: { name: "Claude Code" } }],
+    spaces: [{ id: "s1", index: 0, tabs: [] }],
+    panes: [{ pane: "p1", terminal: "t1", name: "Reviewer", cwd: null }],
+    casts: { t1: 0 }, seats: {}, since: {}, now: 0,
+  });
+  assert.equal(people[0].name, "Reviewer");
+  assert.equal(people[0].castName, cast.name);
+  assert.equal(people[0].pane, "p1");
+  assert.ok(matches(people[0], cast.name.toLowerCase()));
+  assert.ok(matches(people[0], "reviewer"));
+}
+
+// Hire names: the new tab's pane is found by the tabs that were there before.
+{
+  const { newHirePane } = await import("../mods/office/people.js");
+  const pending = { space: "s1", tabs: ["x1"], name: "Reviewer", at: 0 };
+  const before = [{ id: "s1", tabs: [{ id: "x1" }] }];
+  const after = [{ id: "s1", tabs: [{ id: "x1" }, { id: "x2" }] }];
+  const panes = [{ pane: "p1", tab: "x1", terminal: "t1" }, { pane: "p2", tab: "x2", terminal: "t2" }];
+  assert.equal(newHirePane(before, panes, pending), null);
+  assert.equal(newHirePane(after, panes, pending), "p2");
+  assert.equal(newHirePane(after, [{ pane: "m", tab: "x2", terminal: null }], pending), null);
+  assert.equal(newHirePane(after, panes, { ...pending, space: "nope" }), null);
+}

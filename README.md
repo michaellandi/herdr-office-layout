@@ -16,6 +16,14 @@ Prefer the terminal? [herdr-office](https://github.com/michaellandi/herdr-office
 
 ## Install
 
+### 1. Install Herdr
+
+This is a layout for the **Herdr desktop app**. Download it from [herdr.dev/download](https://herdr.dev/download/) (macOS, Linux and Windows) and open it once. The first start creates the app home, `~/.config/herdr-app`, and puts the `herdr-app` command in `~/.local/bin` (add that to your `PATH` if `herdr-app --help` is not found). herdr-core, which runs the terminals, comes with it.
+
+The terminal app (`herdr`, from [herdr.dev/tui](https://herdr.dev/tui/)) is a separate program; for that one, use the [herdr-office](https://github.com/michaellandi/herdr-office) plugin instead.
+
+### 2. Add the office
+
 Copy the layouts and both mods into the Herdr app home (`~/.config/herdr-app`, or `$HERDR_APP_HOME` if that is set).
 
 ```sh
@@ -32,6 +40,30 @@ herdr-app do layout.switch '{"name":"office"}'
 
 Switch back with Ctrl+Shift+L, or `herdr-app do layout.switch '{"name":"main"}'`. Deleting the two layout files and the two mod folders removes it. Herdr's own layouts and mods are not modified.
 
+### Optional: start new spaces and tabs in one folder
+
+By default a new space or tab starts in the folder of the terminal you have selected, else your home folder. To always start somewhere else, bind the new-space and new-tab keys with a `folder` in `~/.config/herdr-app/keys.json` (replace the existing `cmd-n` / `cmd-t` entries under `"global"`; on Linux and Windows use the keys you have there). The app applies it at once:
+
+```json
+"cmd-n": { "command": "space.new", "args": { "folder": "/Users/you/workspace" } },
+"cmd-t": { "command": "tab.new", "args": { "folder": "/Users/you/workspace" } }
+```
+
+Use an absolute path that exists: `folder` does not expand `~`, and a missing folder makes the key fail with an error instead of opening the tab.
+
+Once you edit `keys.json` it is yours: Herdr stops updating it, so new default shortcuts from later releases have to be added by hand. Keep a copy of the file before editing. The menu bar shows only plain string bindings, so these keys no longer appear next to New Space and New Tab there, but they still work. The tab bar's **+** and **+ Hire** keep their own folders.
+
+The desktop app does not read the terminal app's `~/.config/herdr/config.toml`. If you use both, set the same folder there for `herdr`:
+
+```toml
+[terminal]
+new_cwd = "~/workspace"
+```
+
+`herdr config check` validates it; `herdr server reload-config` applies it to a running session.
+
+### About office-peek
+
 `mods/office-peek` is a clone of Herdr's `peek` mod (made with `mod.clone`) whose button reads "Promote to desk" instead of "keep". The office opens it when you peek at a helper.
 
 ## The floor
@@ -46,7 +78,7 @@ Moves use GPUI `.transition`; bobbing, typing, steam and screens use `.loop` and
 
 ## Cards
 
-Click a person or a desk to open their card; click empty floor (or anywhere outside the card) to close it. The card shows status and for how long, time on shift, tab (with **Rename**), branch, uncommitted counts, context percent and model when the status line has one.
+Click a person or a desk to open their card; click empty floor (or anywhere outside the card) to close it. The card shows the person's name (with **Rename**: Herdr's own prompt, filled in with the current name, stored as the pane's name, so the floor, the card, the pane header and every other client and layout use it; an empty name gives the cast name back, and the cast name still matches in the filter), status and for how long, time on shift, tab (with **Rename**), branch, uncommitted counts, context percent and model when the status line has one.
 
 For a blocked agent it adds what they are stuck on, the tool call it is about (for example `Shell npm test -- --run login.spec.ts`), and buttons:
 
@@ -66,7 +98,7 @@ A card lists its agent's helpers (name, command, status, how long). Click one to
 
 - The header counts desks, need you, working, done, idle and unsure; click a count to filter the floor. The space button opens a list of spaces with their shortcuts. The punch-clock chip is how today has been spent (work, waiting, idle, done) since the layout was shown.
 - The rail has the filter (name, program, tab, space, status, branch or directory name), **+ Hire**, **Standup**, the current notice, and the desk count.
-- **+ Hire** starts a new tab: a plain **Terminal** (so you pick the directory), or any installed agent. An optional tab name field names it. The agent list is cached, so the dialog opens at once.
+- **+ Hire** starts a new tab: a plain **Terminal** (so you pick the directory), or any installed agent. Optional fields name the tab and the agent (the agent name is set on its pane once the tab appears, as the card's Rename would). The agent list is cached, so the dialog opens at once.
 - The boundary between the floor and the panes below can be dragged.
 
 ## Answering for you
@@ -118,9 +150,9 @@ Same rules as herdr-office:
 
 ## What this version does not do
 
-- No desk dragging, shepherd mode, single-cubicle zoom, news slabs or escalation toasts (Herdr already toasts when an agent needs you).
+- No shepherd mode, single-cubicle zoom, news slabs or escalation toasts (Herdr already toasts when an agent needs you).
 - "Unsure" is only for a status outside working / blocked / done / idle, which today's app does not report.
-- Looks repeat after seven agents; the tab name tells them apart.
+- Looks repeat after seven agents; the tab name, or a name you give them (card **Rename**, or the Hire dialog), tells them apart.
 - Tabs an agent opens with `tab.new` are separate desks with no link back to it. Only `hc run` helpers are linked.
 
 ## Check without the app

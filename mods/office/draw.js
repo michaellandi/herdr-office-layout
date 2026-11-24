@@ -13,7 +13,7 @@ import { screenRow, FRAME_MS, SCREEN_W, starRow, STAR_ROWS, STAR_MS } from "./sc
 import { chatLine, pickScript } from "./chatter.js";
 import { activityOf, activityProp, deskProps, deskProp } from "./props.js";
 import { castByIndex, castIndex, CAST } from "./identity.js";
-import { withShells } from "./people.js";
+import { withShells, personName } from "./people.js";
 
 const castBody = (id) => CAST.find((c) => c.id === id)?.body || "#c8cdd8";
 
@@ -198,7 +198,7 @@ function nameTag(person, selected) {
   return div().px(8).h(18).flex().items_center().rounded(9).bg(person.focused ? "#3a2c18" : selected ? "#2a3344" : "#141a24")
     .border(person.focused ? 2 : 1).border_color(person.focused ? FOCUS : st.fg)
     .text_size(11).font_weight(700).text_color(selected ? C.ink : C.soft)
-    .child(person.name);
+    .child(truncate(person.name, 16));
 }
 
 function wavingArm(person, id) {
@@ -524,18 +524,14 @@ function detailCard(model, view) {
     .child(h_flex().items_center().gap(8)
       .child(image(`mods/office/${person.cast}-${person.status === "blocked" ? "hand" : person.status === "idle" || person.status === "unsure" ? "doze" : "sit"}.svg`).w(36).h(42))
       .child(v_flex().flex_1().gap(1)
-        .child(div().text_size(14).font_weight(800).text_color(C.ink).child(`${person.name}  ${person.programName}`))
+        .child(div().text_size(14).font_weight(800).text_color(C.ink).child(`${truncate(person.name, 20)}  ${person.programName}`))
         .child(div().text_size(11).font_weight(700).text_color(st.fg).child(st.label)))
       .child(stop(div().id("detail-close").px(6).cursor_pointer().text_color(C.dim).on_click((_e, cx) => view.clear(cx)).child("×"))))
+    .child(renameRow("name", person.name === person.castName ? person.name : `${person.name} (${person.castName})`, `rename-agent-${id}`,
+      () => view.renameAgent(person.address)))
     .child(line("status", `${st.label} for ${person.assumed ? "~" : ""}${formatDuration(person.statusMs) || "0s"}`))
     .when(!!shift, (el) => el.child(line("clock", `${formatDuration(shift.onShift)} on shift`)))
-    .child(h_flex().gap(8).items_center()
-      .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child("tab"))
-      .child(div().flex_1().text_size(11).text_color(C.ink).child(truncate(String(person.tabName || "—"), 22)))
-      .child(stop(div().id(`rename-${id}`).px(6).h(18).flex().items_center().rounded(4).text_size(10).text_color(C.soft).cursor_pointer()
-        .hover((s) => s.bg("#3a465c"))
-        .on_click((_e, cx) => { cx.stop_propagation(); view.renameTab(person.address, cx); })
-        .child("Rename"))))
+    .child(renameRow("tab", person.tabName || "—", `rename-${id}`, () => view.renameTab(person.address)))
     .child(lookRow(person, view))
     .child(line("branch", person.branch || "—"))
     .child(line("changes", dirtWords(person.dirt) || "not read yet"))
@@ -604,6 +600,17 @@ function lookRow(person, view) {
         .on_click((_e, cx) => { cx.stop_propagation(); view.pickLook(person.address, i, cx); })
         .child(image(`mods/office/${cast.id}-sit.svg`).w(20).h(23).ml(1)));
     })));
+}
+
+// A card row with a Rename key: Herdr asks for the new name.
+function renameRow(k, v, id, action) {
+  return h_flex().gap(8).items_center()
+    .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child(k))
+    .child(div().flex_1().text_size(11).text_color(C.ink).child(truncate(String(v ?? "—"), 22)))
+    .child(stop(div().id(id).px(6).h(18).flex().items_center().rounded(4).text_size(10).text_color(C.soft).cursor_pointer()
+      .hover((s) => s.bg("#3a465c"))
+      .on_click((_e, cx) => { cx.stop_propagation(); action(); cx.notify(); })
+      .child("Rename")));
 }
 
 // Keys in a fixed-width column so every value starts at the same x.
@@ -772,6 +779,7 @@ export function drawHire(view) {
       .child(stop(div().id("hire-close").cursor_pointer().text_color(C.dim).on_click(() => view.closeHire()).child("close"))))
     .child(div().text_size(12).text_color(C.soft).child(space ? `New tab in ${truncate(space.name || "this space", 32)} · ${dirBase(space.folder) || "home"}` : "New tab in the current space"))
     .when(!!view.nameInput, (el) => el.child(Input.new(view.nameInput).id("hire-name").h(30).px(8).rounded(6).border(1).border_color(C.line).bg("#10151c").text_size(12).text_color(C.ink)))
+    .when(!!view.agentNameInput, (el) => el.child(Input.new(view.agentNameInput).id("hire-agent-name").h(30).px(8).rounded(6).border(1).border_color(C.line).bg("#10151c").text_size(12).text_color(C.ink)))
     .child(div().flex_1().overflow_y_scrollbar().child(catalogBody(catalog, view)));
 }
 
@@ -810,7 +818,7 @@ export function drawStandup(view) {
   const idle = agents().filter((a) => a.status === "idle");
   const casts = shared("office.cast") || {};
   const send = shared("office.allowSend") === true;
-  const names = idle.map((a) => castByIndex(casts[a.address]).name);
+  const names = idle.map((a) => personName(a, null, castByIndex(casts[a.address])));
   return v_flex().id("office-standup").size_full().p(16).gap(10).bg(C.card).text_color(C.ink)
     .child(h_flex().justify_between().items_center()
       .child(div().text_size(16).font_weight(800).child("Standup"))

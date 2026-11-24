@@ -10,7 +10,7 @@ import { officeStatus } from "./theme.js";
 import { assignCasts, castByIndex, castIndex, helperCast, pickCast } from "./identity.js";
 import { assignSeats, moveSeat } from "./seats.js";
 import { assignRooms } from "./rooms.js";
-import { buildPeople, groupsOf, cwdKey, withShells, helpersByParent } from "./people.js";
+import { buildPeople, groupsOf, cwdKey, withShells, helpersByParent, newHirePane } from "./people.js";
 import { dirtArgs, countDirt } from "./dirt.js";
 import { parseGauge } from "./head.js";
 import { readAsk } from "./ask.js";
@@ -110,6 +110,7 @@ export default class Office extends View {
     }
     if (this.role === "hire") {
       this.nameInput = InputState.new({ placeholder: "tab name (optional)" });
+      this.agentNameInput = InputState.new({ placeholder: "agent name (optional)" });
     }
     if (this.role === "rail") {
       this.filterInput = InputState.new({ placeholder: "filter names, tabs, status…" });
@@ -276,6 +277,7 @@ export default class Office extends View {
       })));
     }
     this.ticks += 1;
+    this.nameHires();
     if (this.ticks % 15 === 0) this.persist();
     this.publish();
     this.readBlocked(cx);
@@ -721,7 +723,7 @@ export default class Office extends View {
       props: { role: "hire", space: space || null },
       kind: "dialog",
       width: 420,
-      height: 520,
+      height: 560,
       frame: "none",
     });
   }
@@ -757,7 +759,51 @@ export default class Office extends View {
     return raw.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 60);
   }
 
-  // Herdr's own rename prompt for that person's tab.
+  hireAgentName() {
+    const raw = this.agentNameInput ? String(this.agentNameInput.value() || "") : "";
+    return raw.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 40);
+  }
+
+  // Start a hire with tab.new, then give its pane the agent name, if one was
+  // typed. tab.new does not say which pane it made, so the space's tabs are
+  // noted first and the new one is found after. If it is not there yet, the
+  // floor copy (which keeps ticking after this dialog closes) finishes it.
+  hire(args, space) {
+    const name = this.hireAgentName();
+    const tabs = (space?.tabs || []).map((t) => t.id);
+    run("tab.new", args);
+    if (!name || !space?.id || demoOn()) return;
+    const pending = { space: space.id, tabs, name, at: Date.now() };
+    const pane = newHirePane(spaces(), panes(), pending);
+    if (pane) run("pane.rename", { pane, name });
+    else setShared("office.hireNames", [...(shared("office.hireNames") || []), pending]);
+  }
+
+  // Floor copy, every tick: name the hires that have shown up since; give up
+  // on one after 30 seconds (the tab failed to start or was closed).
+  nameHires() {
+    const list = shared("office.hireNames");
+    if (!Array.isArray(list) || !list.length) return;
+    const now = Date.now();
+    const left = [];
+    for (const pending of list) {
+      const pane = newHirePane(spaces(), panes(), pending);
+      if (pane) run("pane.rename", { pane, name: pending.name });
+      else if (now - (pending.at || 0) < 30000) left.push(pending);
+    }
+    setShared("office.hireNames", left);
+  }
+
+  // Herdr's own rename prompt for that person's pane: the name the floor,
+  // the card and the pane header show. An empty name gives the cast name back.
+  renameAgent(address, cx) {
+    const person = this.personOf(address);
+    if (person?.pane && !demoOn()) {
+      this.askName("Rename agent", person.name, { name: "pane.rename", args: { pane: person.pane } }, `Empty: ${person.castName} again.`);
+    }
+    if (cx) cx.notify();
+  }
+
   // The card's Look row: give this agent that look (and its cast name, unless
   // they have been renamed). Office-only, kept with the other looks.
   pickLook(address, index, cx) {
@@ -794,7 +840,7 @@ export default class Office extends View {
     if (name) args.name = name;
     if (space?.id) args.space = space.id;
     if (space?.folder) args.folder = space.folder;
-    run("tab.new", args);
+    this.hire(args, space);
     this.closeHire();
   }
 
@@ -806,7 +852,7 @@ export default class Office extends View {
     if (name) args.name = name;
     if (space?.id) args.space = space.id;
     if (space?.folder) args.folder = space.folder;
-    run("tab.new", args);
+    this.hire(args, space);
     this.closeHire();
   }
 

@@ -79,3 +79,15 @@ console.log("helpers ok");
   assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].bottom ?? again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].bottom ?? sc.spots[a].y]), "stable, whatever the measured height");
   console.log("lounge ok", kinds.join(","));
 }
+{
+  const { moveSeat } = await import("../mods/office/seats.js");
+  const saved = { a: { space: "s", n: 0 }, b: { space: "s", n: 1 }, c: { space: "s", n: 2 }, d: { space: "s", n: 3 }, x: { space: "o", n: 0 } };
+  const fwd = moveSeat(saved, "s", "a", "c");
+  assert.deepEqual(["a", "b", "c", "d"].sort((p, q) => fwd[p].n - fwd[q].n), ["b", "c", "a", "d"], "moving right takes the target's place");
+  const back = moveSeat(saved, "s", "d", "b");
+  assert.deepEqual(["a", "b", "c", "d"].sort((p, q) => back[p].n - back[q].n), ["a", "d", "b", "c"], "moving left shifts the rest over");
+  assert.deepEqual(moveSeat(saved, "s", "a", "x"), saved, "another space's desk is not a target");
+  assert.deepEqual(moveSeat(saved, "s", "a", "a"), saved);
+  assert.equal(fwd.x.n, 0, "other spaces untouched");
+  console.log("desk drag ok");
+}

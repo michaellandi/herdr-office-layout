@@ -79,8 +79,8 @@ console.log("helpers ok");
   const again = layoutFloor({ width: 1400, height: 1600, groups: g(many), loungeSeats: seatsL });
   // The couch and the open floor do not depend on it (spots by the top
   // furniture do, by design: they are measured from the top).
-  const low = many.filter((a) => sc.spots[a].seat === "couch" || sc.spots[a].seat === "floor");
-  assert.deepEqual(low.map((a) => [again.spots[a].x, again.spots[a].bottom]), low.map((a) => [sc.spots[a].x, sc.spots[a].bottom]), "couch and floor stable, whatever the measured height");
+  const low = many.filter((a) => sc.spots[a].seat === "couch");
+  assert.deepEqual(low.map((a) => [again.spots[a].x, again.spots[a].bottom]), low.map((a) => [sc.spots[a].x, sc.spots[a].bottom]), "couch stable, whatever the measured height");
   console.log("lounge ok", kinds.join(","));
 }
 // Errands: now and then someone walks to the shelf, the coffee machine or
@@ -116,6 +116,19 @@ console.log("helpers ok");
   const t0 = 5 * ROUND_MS;
   const phases = who.map((a) => errands([a], [a], t0).get(a)?.away);
   assert.ok(new Set(phases.map(String)).size >= 1);
+  // Nobody stands on anybody, at any moment, errands and visits included.
+  {
+    const crowd = Array.from({ length: 7 }, (_, i) => `o${i}`);
+    const seatsO = new Map();
+    for (let k = 0; k < 400; k += 1) {
+      const sc = layoutFloor({ width: 1400, height: 700, groups: g(crowd), loungeW: 480, loungeSeats: seatsO, wander: { now: k * 4000 + 7, asleep: () => false } });
+      const pts = crowd.map((a) => sc.spots[a]);
+      for (let i = 0; i < pts.length; i += 1) for (let j = i + 1; j < pts.length; j += 1) {
+        const far = Math.abs(pts[i].x - pts[j].x) >= 60 || Math.abs((pts[i].bottom ?? 0) - (pts[j].bottom ?? 0)) >= 56;
+        assert.ok(far, `no overlap at step ${k}: ${crowd[i]} ${crowd[j]}`);
+      }
+    }
+  }
   // Visits stay inside the lounge.
   {
     const lw = 220;

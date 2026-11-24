@@ -3,8 +3,16 @@
 // Draw code uses `dir`, the last segment, and must not print `cwd`.
 
 import { officeStatus, clockStatus } from "./theme.js";
-import { dirBase } from "./text.js";
+import { dirBase, sanitize } from "./text.js";
 import { castByIndex } from "./identity.js";
+
+// What a person is called: the pane name someone gave them (`pane.rename`,
+// the card's Rename), else their cast name. Stored by Herdr, so every client
+// and every layout sees the same name.
+export function personName(agent, pane, cast) {
+  const given = sanitize(String(pane?.name || agent?.pane_name || "")).trim().slice(0, 40);
+  return given || cast.name;
+}
 
 export function spaceMachine(spaces, spaceId) {
   const space = (spaces || []).find((s) => s.id === spaceId);
@@ -37,6 +45,7 @@ export function withShells(agents, panes, spaces) {
       status: "shell",
       app: null,
       program: pane.program || { key: "shell", name: "shell" },
+      pane_name: pane.name || null,
       focused: !!pane.focused,
     });
   }
@@ -85,7 +94,9 @@ export function buildPeople({ agents, spaces, panes, casts, seats, since, dirt, 
     list.push({
       id: agent.address,
       address: agent.address,
-      name: cast.name,
+      name: personName(agent, pane, cast),
+      castName: cast.name,
+      pane: agent.pane || pane?.pane || null,
       cast: cast.id,
       body: cast.body,
       status,

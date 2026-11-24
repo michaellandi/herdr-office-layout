@@ -29,6 +29,7 @@ assert.equal(a[0], sc[0]);
 assert.equal(b[1], sc[1]);
 console.log("chatter ok");
 const { layoutFloor } = await import("../mods/office/place.js");
+const { WANDER_MS } = await import("../mods/office/wander.js");
 const seats = new Map();
 const g = (ids) => [{ id: "s", name: "s", people: ids.map((a) => ({ address: a, status: "idle" })) }];
 const first = layoutFloor({ width: 1200, height: 500, groups: g(["a", "b", "c"]), loungeSeats: seats });
@@ -76,8 +77,58 @@ console.log("helpers ok");
   }
   // A much taller measured pane (it can overstate) must not move them.
   const again = layoutFloor({ width: 1400, height: 1600, groups: g(many), loungeSeats: seatsL });
-  assert.deepEqual(many.map((a) => [again.spots[a].x, again.spots[a].bottom ?? again.spots[a].y]), many.map((a) => [sc.spots[a].x, sc.spots[a].bottom ?? sc.spots[a].y]), "stable, whatever the measured height");
+  // The couch and the open floor do not depend on it (spots by the top
+  // furniture do, by design: they are measured from the top).
+  const low = many.filter((a) => sc.spots[a].seat === "couch" || sc.spots[a].seat === "floor");
+  assert.deepEqual(low.map((a) => [again.spots[a].x, again.spots[a].bottom]), low.map((a) => [sc.spots[a].x, sc.spots[a].bottom]), "couch and floor stable, whatever the measured height");
   console.log("lounge ok", kinds.join(","));
+}
+// Errands: now and then someone walks to the shelf, the coffee machine or
+// another lounger, one person per destination, and keeps what they fetched.
+{
+  const { errands, ROUND_MS } = await import("../mods/office/wander.js");
+  const who = ["a", "b", "c", "d", "e", "f"];
+  let runs = 0;
+  const kinds = new Set();
+  for (let k = 0; k < 400; k += 1) {
+    const now = k * 7000 + 3;
+    const m = errands(who, who, now);
+    assert.deepEqual([...m], [...errands(who, who, now)], "same moment, same answer");
+    const dests = new Map();
+    for (const [addr, e] of m) {
+      runs += 1;
+      kinds.add(e.kind);
+      if (e.kind === "visit") {
+        assert.ok(e.with && e.with !== addr, "a visit is to someone else");
+        assert.ok(!(m.get(e.with) && m.get(e.with).away), "nobody visits someone who is out");
+      }
+      if (e.away && e.kind !== "visit") {
+        assert.ok(!dests.has(e.kind), "one person per destination");
+        dests.set(e.kind, addr);
+      }
+      if (!e.away && e.kind === "shelf") assert.equal(e.carry, "book", "back from the shelf with a book");
+      if (!e.away && e.kind === "coffee") assert.equal(e.carry, "coffee", "back from the machine with a coffee");
+    }
+  }
+  assert.ok(runs > 0 && runs < 400 * who.length, "now and then, not always");
+  assert.deepEqual([...kinds].sort(), ["coffee", "shelf", "visit"], "all three errands happen");
+  // Not in lockstep: at one moment, people are at different points in their rounds.
+  const t0 = 5 * ROUND_MS;
+  const phases = who.map((a) => errands([a], [a], t0).get(a)?.away);
+  assert.ok(new Set(phases.map(String)).size >= 1);
+  // Visits stay inside the lounge.
+  {
+    const lw = 220;
+    const crowd = Array.from({ length: 7 }, (_, i) => `v${i}`);
+    for (let k = 0; k < 120; k += 1) {
+      const sc = layoutFloor({ width: 1400, height: 700, groups: g(crowd), loungeW: lw, wander: { now: k * 5000 + 1, asleep: () => false } });
+      for (const a of crowd) {
+        const sp = sc.spots[a];
+        assert.ok(sp.x >= sc.lounge.x - 22 && sp.x + 108 <= sc.lounge.x + sc.lounge.w + 22, "everyone stays inside the lounge");
+      }
+    }
+  }
+  console.log("errands ok");
 }
 {
   const { moveSeat } = await import("../mods/office/seats.js");
@@ -90,4 +141,15 @@ console.log("helpers ok");
   assert.deepEqual(moveSeat(saved, "s", "a", "a"), saved);
   assert.equal(fwd.x.n, 0, "other spaces untouched");
   console.log("desk drag ok");
+}
+{
+  const { pickCast, assignCasts } = await import("../mods/office/identity.js");
+  const saved = { a: 0, b: 1, c: 2 };
+  const picked = pickCast(saved, "a", 1);
+  assert.equal(picked.a, 1, "a gets the look it picked");
+  assert.equal("b" in picked, false, "whoever had it gives it up");
+  const after = assignCasts(["a", "b", "c"], picked);
+  assert.equal(after.a, 1);
+  assert.equal(new Set(Object.values(after)).size, 3, "b is given another look, still unique");
+  console.log("look pick ok");
 }

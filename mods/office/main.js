@@ -7,7 +7,7 @@ import {
   knownAgents, openOverlay, closeOverlay, setWindowTitle, setBadge, setAgentOrder,
 } from "herdr";
 import { officeStatus } from "./theme.js";
-import { assignCasts, castByIndex, castIndex, helperCast } from "./identity.js";
+import { assignCasts, castByIndex, castIndex, helperCast, pickCast } from "./identity.js";
 import { assignSeats, moveSeat } from "./seats.js";
 import { assignRooms } from "./rooms.js";
 import { buildPeople, groupsOf, cwdKey, withShells, helpersByParent } from "./people.js";
@@ -758,6 +758,15 @@ export default class Office extends View {
   }
 
   // Herdr's own rename prompt for that person's tab.
+  // The card's Look row: give this agent that look (and its cast name, unless
+  // they have been renamed). Office-only, kept with the other looks.
+  pickLook(address, index, cx) {
+    this.casts = pickCast(this.casts, address, index);
+    this.ensure();
+    writeJson(CAST_STORE, this.casts);
+    if (cx) cx.notify();
+  }
+
   // Herdr's own rename prompt, opened with the current name filled in (and
   // selected), so editing starts from it. Save runs the rename command.
   askName(title, value, command, hint) {

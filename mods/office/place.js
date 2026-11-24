@@ -4,6 +4,9 @@
 // couch, and so do done ones (the shipped board counts them). Blocked ones come to the front
 // with a raised hand. Unsure ones stand by the bookshelf. The desk stays put.
 
+import { errands } from "./wander.js";
+import { fnv } from "./text.js";
+
 const GAP = 12;
 // Centre-to-centre distance between people on the couch.
 const LOUNGE_STEP = 76;
@@ -77,7 +80,7 @@ export function scatterSpots(band, top, want = 12) {
   return placed.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) }));
 }
 
-export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeats = null }) {
+export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeats = null, wander = null }) {
   const w = Math.max(720, Math.round(width || 1200));
   const h = Math.max(320, Math.round(height || 460));
   // The person can drag the lounge wider or narrower (see draw.js); otherwise
@@ -166,15 +169,20 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   const couchSeats = Math.max(1, Math.floor((loungeW - 32) / LOUNGE_STEP));
   const overflow = Math.max(0, loungers - couchSeats - 1);
   const perRowGuess = Math.max(1, Math.floor((loungeW + 44 - PERSON_W) / SPACING) + 1);
-  const floorBand = overflow ? PERSON_H + 60 + (Math.ceil(overflow / perRowGuess) - 1) * 86 : 0;
-  const loungeNeed = GAP + 150 + 68 + COUCH_BOTTOM + floorBand;
+  // The coffee machine and shelf at the top, then at least one row of open
+  // floor (more for overflow), then the couch at the bottom.
+  const floorRows = Math.max(1, Math.ceil(overflow / perRowGuess));
+  const loungeNeed = GAP + 150 + PERSON_H + 60 + (floorRows - 1) * 86 + 64 + COUCH_BOTTOM;
   const contentH = Math.max(loungeNeed, rugsBottom + (anyBlocked ? frontH : 0) + GAP);
   const lounge = { x: GAP, y: GAP, w: loungeW, h: contentH - GAP * 2 };
+  // The whole lounge is laid out up from the floor's bottom edge: the couch,
+  // then the open floor, then the coffee machine and the bookshelf. One frame
+  // for everything, so a walk from the couch to the shelf can be animated:
+  // the measured pane height can overstate what is drawn, so nothing in the
+  // lounge depends on it. `bottom` is the distance from the floor's bottom.
+  const couch = { x: lounge.x + 12, y: lounge.y + 150, w: lounge.w - 24, h: 68, bottom: COUCH_BOTTOM };
   const coffee = { x: lounge.x + 14, y: lounge.y + 32, w: 58, h: 70 };
   const shelf = { x: lounge.x + lounge.w - 74, y: lounge.y + 36, w: 58, h: 96 };
-  // Under the coffee and the shelf rather than at the lounge's bottom, so it
-  // never depends on the measured height (which can overstate the pane).
-  const couch = { x: lounge.x + 12, y: lounge.y + 150, w: lounge.w - 24, h: 68 };
   const board = { x: w - GAP - 108, y: contentH - frontH + 18, w: 96, h: 86 };
 
   // The couch first, side by side, then the coffee machine, then scattered
@@ -182,32 +190,43 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // measured from the bottom when the floor fits its pane (the couch is pinned
   // there), and are LOUNGE_STEP apart so two people never overlap.
   const idleSpots = [];
-  const couchN = Math.max(1, Math.floor((couch.w - 8) / LOUNGE_STEP));
+  // Seats keep clear of the couch's arms (18 wide each end).
+  const couchN = Math.max(1, Math.floor((couch.w - 40) / LOUNGE_STEP));
+  const couchCenters = [];
   for (let i = 0; i < couchN; i += 1) {
-    const center = couch.x + couch.w / 2 + (i - (couchN - 1) / 2) * LOUNGE_STEP;
-    idleSpots.push({ x: Math.round(center - 54), y: couch.y - 8, kind: "couch", bottom: fits ? COUCH_BOTTOM + 2 : null });
+    const center = Math.round(couch.x + couch.w / 2 + (i - (couchN - 1) / 2) * LOUNGE_STEP);
+    couchCenters.push(center);
+    idleSpots.push({ x: center - 54, y: couch.y - 8, kind: "couch", bottom: COUCH_BOTTOM + 2 });
   }
-  idleSpots.push({ x: coffee.x - 4, y: coffee.y + 18, kind: "coffee" });
-  // Then the open floor just above the couch: scattered spots, spaced so
-  // nobody overlaps. Measured from the bottom like the couch, because the
-  // measured pane height can overstate what is drawn; anchoring to the
-  // bottom keeps them on the visible floor whatever the height.
-  if (fits) {
-    // Tall enough for everyone who will not fit on the couch or at the
-    // coffee machine: a row of spots per ~86px, at least one row.
-    const loungers = list.flatMap((g) => g.people).filter((p) => p.status === "idle" || p.status === "done").length;
-    const extra = Math.max(0, loungers - idleSpots.length);
-    const perRow = Math.max(1, Math.floor((lounge.w + 44 - PERSON_W) / SPACING) + 1);
-    const base = COUCH_BOTTOM + couch.h - 4;
-    // Grow the band a row at a time until everyone has a spot (random
-    // sampling does not pack perfectly, so the row count is a starting guess).
-    let spots = [];
-    for (let rows = Math.max(1, Math.ceil(extra / perRow)); rows <= 12; rows += 1) {
-      spots = scatterSpots({ x: lounge.x, y: base, w: lounge.w }, base + PERSON_H + 60 + (rows - 1) * 86, Math.max(4, extra + 2));
-      if (spots.length >= extra) break;
-    }
-    for (const spot of spots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
+  // The open floor above the couch: scattered spots, spaced so nobody
+  // overlaps, tall enough for everyone who will not fit on the couch or at
+  // the coffee machine, and always at least one row so there is room to walk.
+  const loungersN = list.flatMap((g) => g.people).filter((p) => p.status === "idle" || p.status === "done").length;
+  const extra = Math.max(0, loungersN - couchN - 1);
+  const perRow = Math.max(1, Math.floor((lounge.w + 44 - PERSON_W) / SPACING) + 1);
+  const base = COUCH_BOTTOM + couch.h - 4;
+  let bandTop = base + PERSON_H + 60;
+  let floorSpots = [];
+  for (let rows = Math.max(1, Math.ceil(extra / perRow)); rows <= 12; rows += 1) {
+    bandTop = base + PERSON_H + 60 + (rows - 1) * 86;
+    floorSpots = scatterSpots({ x: lounge.x, y: base, w: lounge.w }, bandTop, Math.max(4, extra + 2));
+    if (floorSpots.length >= extra) break;
   }
+  // The coffee machine and the shelf stay at the top of the lounge. People
+  // in the lounge are placed up from the bottom (so the measured height never
+  // pushes them off the floor), so a spot by the top furniture is converted
+  // with the world's height: the pane's, or the content's if taller.
+  const worldH = Math.max(contentH, h);
+  const fromTop = (y) => Math.max(bandTop - 40, Math.round(worldH - y - PERSON_H));
+  // Beside the coffee table, not on it: the table spans the machine plus a
+  // few px either side, and a body is ~58 wide in the middle of its 108 box.
+  idleSpots.push({ x: coffee.x + coffee.w - 14, bottom: fromTop(coffee.y + 28), kind: "coffee" });
+  for (const spot of floorSpots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
+  // Where errands go: beside the coffee machine, in front of the shelf.
+  const stands = {
+    coffee: { x: coffee.x + coffee.w + 38, bottom: fromTop(coffee.y + 28) },
+    shelf: { x: Math.max(lounge.x - 10, shelf.x - 62), bottom: fromTop(shelf.y + 40) },
+  };
 
   const people = list.flatMap((group) => group.people);
   // Done means "finished while you weren't looking". They are off the clock
@@ -240,19 +259,63 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     seatOf.set(person.address, n);
     taken.add(n);
   }
-  idle.forEach((person) => {
+  // Errands (wander.js): now and then someone gets up for a book, a coffee
+  // or a chat. `wander` is { now, asleep(address) }; without it everyone
+  // stays at their own seat. Nappers stay put.
+  const homeOf = (person) => {
     const i = seatOf.get(person.address);
-    const spot = idleSpots[i % idleSpots.length];
-    const lap = Math.floor(i / idleSpots.length);
+    return { spot: idleSpots[i % idleSpots.length], lap: Math.floor(i / idleSpots.length), i };
+  };
+  const awake = wander ? idle.filter((p) => !wander.asleep?.(p.address)).map((p) => p.address) : [];
+  const runs = wander ? errands(awake, awake, wander.now) : new Map();
+  const visitedBy = new Map();
+  for (const [address, e] of runs) if (e.away && e.kind === "visit" && e.with) visitedBy.set(e.with, address);
+  // Coming back from an errand, people often sit somewhere new rather than
+  // right back where they were: a free couch seat or floor spot, chosen once
+  // per round and kept (it becomes their seat), so nobody bounces back.
+  if (!seatOf.moved) seatOf.moved = new Map();
+  const roundOf = (address) => Math.floor((wander ? wander.now : 0) / 36000 + (fnv(`${address}|offset`) % 36000) / 36000);
+  for (const person of idle) {
+    const run = runs.get(person.address);
+    if (!run || run.away) continue;
+    const n = roundOf(person.address);
+    if (seatOf.moved.get(person.address) === n) continue;
+    seatOf.moved.set(person.address, n);
+    if (fnv(`${person.address}|resit|${n}`) % 3 === 0) continue;
+    const held = new Set([...seatOf.values()]);
+    const free = idleSpots.map((_, i) => i).filter((i) => !held.has(i) && idleSpots[i].kind !== "coffee");
+    if (free.length) seatOf.set(person.address, free[fnv(`${person.address}|where|${n}`) % free.length]);
+  }
+  idle.forEach((person) => {
+    const home = homeOf(person);
+    const run = runs.get(person.address) || null;
+    let spot = home.spot;
+    if (run && run.away) {
+      if (run.kind === "visit" && run.with) {
+        const target = idle.find((p) => p.address === run.with);
+        const there = target ? homeOf(target).spot : spot;
+        // Beside them, on whichever side has room, and never past the
+        // lounge's walls.
+        const minX = lounge.x - 22;
+        const maxX = lounge.x + lounge.w - PERSON_W + 22;
+        const side = there.x + 58 > maxX ? -58 : 58;
+        spot = { x: Math.min(maxX, Math.max(minX, there.x + side)), bottom: there.bottom, kind: "visit" };
+      } else {
+        spot = { ...stands[run.kind], kind: run.kind };
+      }
+    }
     spots[person.address] = {
       x: spot.x,
-      y: spot.y + lap * 18,
-      bottom: spot.bottom == null ? null : spot.bottom + lap * 18,
+      y: (spot.y ?? 0) + home.lap * 18,
+      bottom: spot.bottom == null ? null : spot.bottom + home.lap * 18,
       pose: person.status === "done" ? "sit" : "doze",
       where: "lounge",
-      seat: spot.kind,
+      seat: run && run.away ? "errand" : home.spot.kind,
       // Seat number: neighbours on the couch are i and i+1 (draw.js small talk).
-      chat: i,
+      chat: home.i,
+      errand: run,
+      // Who they are talking with right now on a visit, either way round.
+      talkWith: run && run.away && run.kind === "visit" ? run.with : (visitedBy.get(person.address) || null),
     };
   });
   unsure.forEach((person, i) => {
@@ -287,6 +350,9 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     contentH,
     lounge,
     coffee,
+    stands,
+    worldH,
+    couchSeats: couchCenters,
     shelf,
     couch,
     board,

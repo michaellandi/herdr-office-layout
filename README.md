@@ -46,7 +46,7 @@ Moves use GPUI `.transition`; bobbing, typing, steam and screens use `.loop` and
 
 ## Cards
 
-Click a person or a desk to open their card; click empty floor (or anywhere outside the card) to close it. The card shows status and for how long, time on shift, tab (with **Rename**), branch, uncommitted counts, context percent and model when the status line has one.
+Click a person or a desk to open their card; click empty floor (or anywhere outside the card) to close it. The card shows the person's name (with **Rename**: Herdr's own prompt, stored as the pane's name, so the floor, the card, the pane header and every other client and layout use it; an empty name gives the cast name back, and the cast name still matches in the filter), status and for how long, time on shift, tab (with **Rename**), branch, uncommitted counts, context percent and model when the status line has one.
 
 For a blocked agent it adds what they are stuck on, the tool call it is about (for example `Shell npm test -- --run login.spec.ts`), and buttons:
 

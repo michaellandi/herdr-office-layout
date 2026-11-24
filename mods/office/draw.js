@@ -13,7 +13,7 @@ import { screenRow, FRAME_MS, SCREEN_W, starRow, STAR_ROWS, STAR_MS } from "./sc
 import { chatLine, pickScript } from "./chatter.js";
 import { activityOf, activityProp, deskProps, deskProp } from "./props.js";
 import { castByIndex, castIndex, CAST } from "./identity.js";
-import { withShells } from "./people.js";
+import { withShells, personName } from "./people.js";
 
 const castBody = (id) => CAST.find((c) => c.id === id)?.body || "#c8cdd8";
 
@@ -209,7 +209,7 @@ function nameTag(person, selected) {
   return div().px(8).h(18).flex().items_center().rounded(9).bg(person.focused ? "#3a2c18" : selected ? "#2a3344" : "#141a24")
     .border(person.focused ? 2 : 1).border_color(person.focused ? FOCUS : st.fg)
     .text_size(11).font_weight(700).text_color(selected ? C.ink : C.soft)
-    .child(person.name);
+    .child(truncate(person.name, 16));
 }
 
 function wavingArm(person, id) {
@@ -479,18 +479,14 @@ function detailCard(model, view) {
     .child(h_flex().items_center().gap(8)
       .child(image(`mods/office/${person.cast}-${person.status === "blocked" ? "hand" : person.status === "idle" || person.status === "unsure" ? "doze" : "sit"}.svg`).w(36).h(42))
       .child(v_flex().flex_1().gap(1)
-        .child(div().text_size(14).font_weight(800).text_color(C.ink).child(`${person.name}  ${person.programName}`))
+        .child(div().text_size(14).font_weight(800).text_color(C.ink).child(`${truncate(person.name, 20)}  ${person.programName}`))
         .child(div().text_size(11).font_weight(700).text_color(st.fg).child(st.label)))
       .child(stop(div().id("detail-close").px(6).cursor_pointer().text_color(C.dim).on_click((_e, cx) => view.clear(cx)).child("×"))))
+    .child(renameRow("name", person.name === person.castName ? person.name : `${person.name} (${person.castName})`, `rename-agent-${id}`,
+      () => view.renameAgent(person.address)))
     .child(line("status", `${st.label} for ${person.assumed ? "~" : ""}${formatDuration(person.statusMs) || "0s"}`))
     .when(!!shift, (el) => el.child(line("clock", `${formatDuration(shift.onShift)} on shift`)))
-    .child(h_flex().gap(8).items_center()
-      .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child("tab"))
-      .child(div().flex_1().text_size(11).text_color(C.ink).child(truncate(String(person.tabName || "—"), 22)))
-      .child(stop(div().id(`rename-${id}`).px(6).h(18).flex().items_center().rounded(4).text_size(10).text_color(C.soft).cursor_pointer()
-        .hover((s) => s.bg("#3a465c"))
-        .on_click((_e, cx) => { cx.stop_propagation(); view.renameTab(person.address, cx); })
-        .child("Rename"))))
+    .child(renameRow("tab", person.tabName || "—", `rename-${id}`, () => view.renameTab(person.address)))
     .child(line("branch", person.branch || "—"))
     .child(line("changes", dirtWords(person.dirt) || "not read yet"))
     .child(line("context", headWords(person.head) || "not read yet"))
@@ -543,6 +539,17 @@ function askBlock(person, model, view, id) {
     // The keys each button sends stay visible, just out of the buttons.
     ? `press Y or N · Y sends ${keyWords(choice.approve)} · N sends ${keyWords(choice.deny)}`
     : `Y ${keyWords(choice.approve)} · N ${keyWords(choice.deny)} · sending is off, buttons focus only`));
+}
+
+// A card row with a Rename key: Herdr asks for the new name.
+function renameRow(k, v, id, action) {
+  return h_flex().gap(8).items_center()
+    .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child(k))
+    .child(div().flex_1().text_size(11).text_color(C.ink).child(truncate(String(v ?? "—"), 22)))
+    .child(stop(div().id(id).px(6).h(18).flex().items_center().rounded(4).text_size(10).text_color(C.soft).cursor_pointer()
+      .hover((s) => s.bg("#3a465c"))
+      .on_click((_e, cx) => { cx.stop_propagation(); action(); cx.notify(); })
+      .child("Rename")));
 }
 
 // Keys in a fixed-width column so every value starts at the same x.
@@ -698,7 +705,7 @@ export function drawStandup(view) {
   const idle = agents().filter((a) => a.status === "idle");
   const casts = shared("office.cast") || {};
   const send = shared("office.allowSend") === true;
-  const names = idle.map((a) => castByIndex(casts[a.address]).name);
+  const names = idle.map((a) => personName(a, null, castByIndex(casts[a.address])));
   return v_flex().id("office-standup").size_full().p(16).gap(10).bg(C.card).text_color(C.ink)
     .child(h_flex().justify_between().items_center()
       .child(div().text_size(16).font_weight(800).child("Standup"))

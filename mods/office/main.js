@@ -750,6 +750,14 @@ export default class Office extends View {
     return raw.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 60);
   }
 
+  // Herdr's own rename prompt for that person's pane: the name the floor,
+  // the card and the pane header show. An empty name gives the cast name back.
+  renameAgent(address, cx) {
+    const person = this.personOf(address);
+    if (person?.pane && !demoOn()) run("pane.rename", { pane: person.pane });
+    if (cx) cx.notify();
+  }
+
   // Herdr's own rename prompt for that person's tab.
   renameTab(address, cx) {
     const person = this.personOf(address);

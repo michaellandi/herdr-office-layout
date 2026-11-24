@@ -5,7 +5,7 @@ export function matches(person, query, status) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return true;
   const aliases = person.status === "blocked" ? "needs you need" : person.status === "unsure" ? "unknown" : "";
-  const hay = [person.name, person.programName, person.tabName, person.spaceName, person.status, aliases, person.branch, person.dir, person.model]
+  const hay = [person.name, person.castName, person.programName, person.tabName, person.spaceName, person.status, aliases, person.branch, person.dir, person.model]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

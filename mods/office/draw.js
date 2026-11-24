@@ -10,7 +10,7 @@ import { dirtWords, dirtBadge } from "./dirt.js";
 import { headWords, headBadge, pressure, HEAD_TINT } from "./head.js";
 import { layoutFloor, COUCH_BOTTOM } from "./place.js";
 import { screenRow, FRAME_MS, SCREEN_W, starRow, STAR_ROWS, STAR_MS } from "./screens.js";
-import { chatLine, pickScript } from "./chatter.js";
+import { chatLine, pickScript, oneConversation } from "./chatter.js";
 import { activityOf, activityProp, deskProps, deskProp } from "./props.js";
 import { castByIndex, castIndex, CAST } from "./identity.js";
 import { withShells, personName } from "./people.js";
@@ -712,26 +712,31 @@ export function drawFloor(model, view) {
   // Pairs on the couch get a script; the first talks, the second answers.
   // Neighbours by seat number, not list order, so the pairs match who is
   // actually sitting together.
-  // A visit is a chat: the visitor talks first, whoever they went to answers.
-  const chatting = new Set();
+  // One conversation in the lounge at a time, so it can be followed: a
+  // visit if anyone is on one (the visitor talks first), else the couch pairs
+  // take turns, a different pair each round (chatter.js).
+  const visits = [];
+  const seen = new Set();
   for (const person of model.visible) {
     const spot = scene.spots[person.address];
-    if (!spot || !spot.talkWith || chatting.has(person.address)) continue;
+    if (!spot || !spot.talkWith || seen.has(person.address)) continue;
     const visitor = spot.errand && spot.errand.away ? person.address : spot.talkWith;
     const host = visitor === person.address ? spot.talkWith : person.address;
     if (!scene.spots[visitor] || !scene.spots[host]) continue;
-    const script = pickScript(visitor, host);
-    scene.spots[visitor] = { ...scene.spots[visitor], talk: chatLine(script, 0) };
-    scene.spots[host] = { ...scene.spots[host], talk: chatLine(script, 1) };
-    chatting.add(visitor);
-    chatting.add(host);
+    visits.push([visitor, host]);
+    seen.add(visitor);
+    seen.add(host);
   }
-  const couch = model.visible.filter((p) => scene.spots[p.address]?.seat === "couch" && !chatting.has(p.address))
+  visits.sort((p, q) => p[0].localeCompare(q[0]));
+  const couch = model.visible.filter((p) => scene.spots[p.address]?.seat === "couch" && !seen.has(p.address))
     .sort((a, b) => scene.spots[a.address].chat - scene.spots[b.address].chat);
-  for (let i = 0; i + 1 < couch.length; i += 2) {
-    const script = pickScript(couch[i].address, couch[i + 1].address);
-    scene.spots[couch[i].address] = { ...scene.spots[couch[i].address], talk: chatLine(script, 0) };
-    scene.spots[couch[i + 1].address] = { ...scene.spots[couch[i + 1].address], talk: chatLine(script, 1) };
+  const couchPairs = [];
+  for (let i = 0; i + 1 < couch.length; i += 2) couchPairs.push([couch[i].address, couch[i + 1].address]);
+  const pair = oneConversation(visits, couchPairs, nowMs);
+  if (pair) {
+    const script = pickScript(pair[0], pair[1]);
+    scene.spots[pair[0]] = { ...scene.spots[pair[0]], talk: chatLine(script, 0) };
+    scene.spots[pair[1]] = { ...scene.spots[pair[1]], talk: chatLine(script, 1) };
   }
   const talkers = [];
   for (const person of model.visible) {

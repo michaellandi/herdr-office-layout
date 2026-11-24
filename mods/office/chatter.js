@@ -37,6 +37,18 @@ export function chatFrames(script, side) {
 // four lines both are quiet for the rest of the cycle.
 export const SLOT_MS = 2000;
 const SLOTS = 16;
+// One full round: four lines, then quiet. One conversation per round.
+export const ROUND_MS = SLOT_MS * SLOTS;
+
+// Which of the possible conversations gets this round: visits first (someone
+// walked over on purpose), else the couch pairs take turns. Returns one pair
+// [speaker, answerer], or null. `pairs` are in a stable order.
+export function oneConversation(visits, couch, now = Date.now()) {
+  const round = Math.floor(now / ROUND_MS);
+  if (visits.length) return visits[round % visits.length];
+  if (couch.length) return couch[round % couch.length];
+  return null;
+}
 
 // What `side` is saying right now, or null.
 export function chatLine(script, side, now = Date.now()) {

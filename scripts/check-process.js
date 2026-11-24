@@ -142,3 +142,14 @@ console.log("helpers ok");
   assert.equal(fwd.x.n, 0, "other spaces untouched");
   console.log("desk drag ok");
 }
+{
+  const { pickCast, assignCasts } = await import("../mods/office/identity.js");
+  const saved = { a: 0, b: 1, c: 2 };
+  const picked = pickCast(saved, "a", 1);
+  assert.equal(picked.a, 1, "a gets the look it picked");
+  assert.equal("b" in picked, false, "whoever had it gives it up");
+  const after = assignCasts(["a", "b", "c"], picked);
+  assert.equal(after.a, 1);
+  assert.equal(new Set(Object.values(after)).size, 3, "b is given another look, still unique");
+  console.log("look pick ok");
+}

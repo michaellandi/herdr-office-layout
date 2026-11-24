@@ -65,3 +65,14 @@ export function assignCasts(addresses, saved = {}) {
   }
   return next;
 }
+
+// Someone chose a look for this agent (the card's Look row). They get it;
+// whoever had it before loses it and is given the next free look by
+// assignCasts on the following pass. Returns a new saved map.
+export function pickCast(saved, address, index) {
+  const next = { ...(saved || {}) };
+  const i = ((Number(index) % CAST.length) + CAST.length) % CAST.length;
+  for (const other of Object.keys(next)) if (other !== address && next[other] === i) delete next[other];
+  next[address] = i;
+  return next;
+}

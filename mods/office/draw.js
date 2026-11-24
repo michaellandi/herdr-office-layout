@@ -536,6 +536,7 @@ function detailCard(model, view) {
         .hover((s) => s.bg("#3a465c"))
         .on_click((_e, cx) => { cx.stop_propagation(); view.renameTab(person.address, cx); })
         .child("Rename"))))
+    .child(lookRow(person, view))
     .child(line("branch", person.branch || "—"))
     .child(line("changes", dirtWords(person.dirt) || "not read yet"))
     .child(line("context", headWords(person.head) || "not read yet"))
@@ -588,6 +589,21 @@ function askBlock(person, model, view, id) {
     // The keys each button sends stay visible, just out of the buttons.
     ? `press Y or N · Y sends ${keyWords(choice.approve)} · N sends ${keyWords(choice.deny)}`
     : `Y ${keyWords(choice.approve)} · N ${keyWords(choice.deny)} · sending is off, buttons focus only`));
+}
+
+// Pick a look: the seven blobs, the current one ringed. Clicking one gives it
+// to this agent; whoever had it gets the next free one.
+function lookRow(person, view) {
+  return h_flex().gap(8).items_center()
+    .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child("look"))
+    .child(h_flex().flex_1().gap(2).children(CAST.map((cast, i) => {
+      const on = cast.id === person.cast;
+      return stop(div().id(`look-${safeId(person.address)}-${cast.id}`).w(24).h(26).rounded(6).cursor_pointer()
+        .border(on ? 2 : 1).border_color(on ? C.ink : "transparent")
+        .hover((s2) => s2.bg("#2a3344"))
+        .on_click((_e, cx) => { cx.stop_propagation(); view.pickLook(person.address, i, cx); })
+        .child(image(`mods/office/${cast.id}-sit.svg`).w(20).h(23).ml(1)));
+    })));
 }
 
 // Keys in a fixed-width column so every value starts at the same x.

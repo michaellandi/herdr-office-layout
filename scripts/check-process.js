@@ -135,6 +135,13 @@ console.log("helpers ok");
     const few = ["s1", "s2", "s3"];
     const sc = layoutFloor({ width: 1400, height: 320, groups: g(few), loungeW: 480 });
     assert.ok(sc.contentH <= 320, `short pane fits (${sc.contentH})`);
+    // And six loungers there still do not sit on each other.
+    const six = ["q1", "q2", "q3", "q4", "q5", "q6"];
+    const st = layoutFloor({ width: 1400, height: 320, groups: g(six), loungeW: 480, loungeSeats: new Map() });
+    const ps = six.map((a) => st.spots[a]);
+    for (let i = 0; i < ps.length; i += 1) for (let j = i + 1; j < ps.length; j += 1) {
+      assert.ok(Math.abs(ps[i].x - ps[j].x) >= 60 || Math.abs(ps[i].bottom - ps[j].bottom) >= 56, `short lounge, no stacking: ${six[i]} ${six[j]}`);
+    }
   }
   // Visits stay inside the lounge.
   {

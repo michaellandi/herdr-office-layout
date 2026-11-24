@@ -222,6 +222,17 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // few px either side, and a body is ~58 wide in the middle of its 108 box.
   idleSpots.push({ x: coffee.x + coffee.w - 14, bottom: fromTop(coffee.y + 28), kind: "coffee" });
   for (const spot of floorSpots) idleSpots.push({ x: spot.x, bottom: spot.y, kind: "floor" });
+  // A row of standing room along the top, between the coffee table and the
+  // shelf: used once the couch and the floor are full, which on a short
+  // lounge (no floor at all) is soon. Only past these does anyone share.
+  {
+    const rowBottom = fromTop(coffee.y + 28);
+    // One step past the coffee seat (coffee.x + coffee.w - 14), so the two
+    // never touch.
+    const fromX = coffee.x + coffee.w - 14 + SPACING;
+    const toX = shelf.x - PERSON_W + 30;
+    for (let x = fromX; x <= toX; x += SPACING) idleSpots.push({ x: Math.round(x), bottom: rowBottom, kind: "floor" });
+  }
   // Where errands go: beside the coffee machine, in front of the shelf.
   const stands = {
     coffee: { x: coffee.x + coffee.w + 58, bottom: fromTop(coffee.y + 28) },

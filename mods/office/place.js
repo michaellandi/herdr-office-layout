@@ -95,9 +95,34 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
 
   const cols = list.length >= 2 && workW >= 640 ? 2 : 1;
   const rugGap = 10;
-  const rugW = Math.floor((workW - rugGap * (cols - 1)) / cols);
-  const innerW = rugW - 28;
-  const slotCols = Math.max(1, Math.floor(innerW / SLOT_W));
+  // Spaces side by side share the width by how many desks each has (at least
+  // one desk's worth each), so a space of six is not squeezed into three rows
+  // next to a space of one.
+  const colX = new Map();
+  for (let r = 0; r < list.length; r += cols) {
+    const row = list.slice(r, r + cols);
+    const avail = workW - rugGap * (row.length - 1);
+    const minW = SLOT_W + 28;
+    const want = row.map((g) => Math.max(1, g.people.length) * SLOT_W + 28);
+    const total = want.reduce((a, b) => a + b, 0);
+    // Everyone gets one desk's width first; what is left goes to whoever
+    // wants more, in proportion, and any spare after that in proportion too.
+    const spare = Math.max(0, avail - minW * row.length);
+    const demand = want.map((wnt) => wnt - minW);
+    const asked = demand.reduce((a, b) => a + b, 0);
+    let x = workX;
+    row.forEach((g, i) => {
+      const extra = row.length === 1 ? spare
+        : asked <= spare ? demand[i] + (spare - asked) * (want[i] / total)
+          : spare * (demand[i] / Math.max(1, asked));
+      const w = Math.floor(minW + extra);
+      colX.set(r + i, { x, w });
+      x += w + rugGap;
+    });
+    // Whatever rounding left over goes to the last one in the row.
+    const last = colX.get(r + row.length - 1);
+    last.w = workX + workW - last.x;
+  }
 
   const rugs = [];
   let y = GAP;
@@ -108,6 +133,8 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
       y += rowH + rugGap;
       rowH = 0;
     }
+    const { x: rugX, w: rugW } = colX.get(index);
+    const slotCols = Math.max(1, Math.floor((rugW - 28) / SLOT_W));
     const slots = Math.max(1, group.people.length);
     const rows = Math.max(1, Math.ceil(slots / slotCols));
     const rugH = RUG_HEAD + rows * SLOT_H + 8;
@@ -118,7 +145,7 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
       const r = Math.floor(i / slotCols);
       desks.push({
         address: person.address,
-        x: workX + col * (rugW + rugGap) + 18 + c * SLOT_W,
+        x: rugX + 18 + c * SLOT_W,
         y: y + RUG_HEAD + r * SLOT_H,
         w: SLOT_W,
         h: SLOT_H,
@@ -128,7 +155,7 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     const seat = {
       space: group.id,
       spaceName: group.name,
-      x: workX + col * (rugW + rugGap) + 18 + (seatI % slotCols) * SLOT_W,
+      x: rugX + 18 + (seatI % slotCols) * SLOT_W,
       y: y + RUG_HEAD + Math.floor(seatI / slotCols) * SLOT_H,
       w: SLOT_W,
       h: SLOT_H,
@@ -141,7 +168,7 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
       id: group.id,
       name: group.name,
       tint: group.tint,
-      x: workX + col * (rugW + rugGap),
+      x: rugX,
       y,
       w: rugW,
       h: rugH,
@@ -353,16 +380,24 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
       where: "shelf",
     };
   });
-  const frontLeft = workX;
   // Blocked people stand at the front of the room, just below the desks, so a
-  // raised hand is never pushed off the bottom of a short window.
-  const frontRight = workX + workW - 120;
+  // raised hand is never pushed off the bottom of a short window, and over
+  // their own space's rug (spread across it), never on the line between two.
   const frontY = rugsBottom + 16;
-  blocked.forEach((person, i) => {
-    const span = Math.max(70, frontRight - frontLeft);
-    const x = blocked.length === 1 ? frontLeft + span / 2 : frontLeft + (span * i) / Math.max(1, blocked.length - 1);
-    spots[person.address] = { x, y: frontY, pose: "hand", where: "front" };
-  });
+  const byRug = new Map();
+  for (const person of blocked) {
+    const rug = rugs.find((r) => r.id === person.space) || rugs[0];
+    if (!byRug.has(rug)) byRug.set(rug, []);
+    byRug.get(rug).push(person);
+  }
+  for (const [rug, crowd] of byRug) {
+    const left = rug.x + 10;
+    const right = Math.max(left, rug.x + rug.w - PERSON_W - 10);
+    crowd.forEach((person, i) => {
+      const x = crowd.length === 1 ? (left + right) / 2 : left + ((right - left) * i) / (crowd.length - 1);
+      spots[person.address] = { x: Math.round(x), y: frontY, pose: "hand", where: "front" };
+    });
+  }
   for (const person of people) {
     if (spots[person.address]) continue;
     const desk = rugs.flatMap((rug) => rug.desks).find((d) => d.address === person.address);

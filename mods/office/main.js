@@ -4,7 +4,7 @@ import { InputState } from "gpui-base";
 import { agents, spaces, panes, terminals, demoOn, DEMO_READS } from "./source.js";
 import {
   props, run, shared, setShared, exec, hc, checking,
-  knownAgents, openOverlay, closeOverlay, setWindowTitle, setBadge, setAgentOrder,
+  knownAgents, openOverlay, closeOverlay, setWindowTitle, setBadge, setAgentOrder, settings,
 } from "herdr";
 import { officeStatus } from "./theme.js";
 import { assignCasts, castByIndex, castIndex, helperCast, pickCast } from "./identity.js";
@@ -188,9 +188,19 @@ export default class Office extends View {
     if (this.role === "floor") this.persist();
   }
 
+  // on_size_change reports window points; the office draws in the app's
+  // zoomed points, so at zoom 1.2 the floor would look 20% bigger than it
+  // is (and people placed from its height would float off the lounge).
   resized(size, cx) {
-    const width = Math.round(size?.width || 0);
-    const height = Math.round(size?.height || 0);
+    let zoom = 1;
+    try {
+      const z = Number(settings()?.zoom);
+      if (Number.isFinite(z) && z > 0.3 && z < 4) zoom = z;
+    } catch {
+      /* no settings: assume 1 */
+    }
+    const width = Math.round((size?.width || 0) / zoom);
+    const height = Math.round((size?.height || 0) / zoom);
     if (!width || !height || (width === this.width && height === this.height)) return;
     this.width = width;
     this.height = height;

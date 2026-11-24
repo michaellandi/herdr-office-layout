@@ -14,6 +14,20 @@ export function personName(agent, pane, cast) {
   return given || cast.name;
 }
 
+// A hire's new pane: the first terminal pane in a tab of `pending.space` that
+// was not there when the hire was made (`pending.tabs`). Null until it shows.
+export function newHirePane(spaces, panes, pending) {
+  const space = (spaces || []).find((s) => s.id === pending?.space);
+  if (!space) return null;
+  const before = new Set(pending.tabs || []);
+  for (const tab of space.tabs || []) {
+    if (before.has(tab.id)) continue;
+    const pane = (panes || []).find((p) => p && p.tab === tab.id && p.terminal);
+    if (pane) return pane.pane;
+  }
+  return null;
+}
+
 export function spaceMachine(spaces, spaceId) {
   const space = (spaces || []).find((s) => s.id === spaceId);
   return space ? space.machine ?? null : null;

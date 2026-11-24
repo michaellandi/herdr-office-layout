@@ -659,6 +659,7 @@ export function drawHire(view) {
       .child(stop(div().id("hire-close").cursor_pointer().text_color(C.dim).on_click(() => view.closeHire()).child("close"))))
     .child(div().text_size(12).text_color(C.soft).child(space ? `New tab in ${truncate(space.name || "this space", 32)} · ${dirBase(space.folder) || "home"}` : "New tab in the current space"))
     .when(!!view.nameInput, (el) => el.child(Input.new(view.nameInput).id("hire-name").h(30).px(8).rounded(6).border(1).border_color(C.line).bg("#10151c").text_size(12).text_color(C.ink)))
+    .when(!!view.agentNameInput, (el) => el.child(Input.new(view.agentNameInput).id("hire-agent-name").h(30).px(8).rounded(6).border(1).border_color(C.line).bg("#10151c").text_size(12).text_color(C.ink)))
     .child(div().flex_1().overflow_y_scrollbar().child(catalogBody(catalog, view)));
 }
 

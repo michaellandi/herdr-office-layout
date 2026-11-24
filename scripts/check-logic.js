@@ -187,3 +187,16 @@ import("../mods/office/people.js").then(({ withShells }) => {
   assert.ok(matches(people[0], cast.name.toLowerCase()));
   assert.ok(matches(people[0], "reviewer"));
 }
+
+// Hire names: the new tab's pane is found by the tabs that were there before.
+{
+  const { newHirePane } = await import("../mods/office/people.js");
+  const pending = { space: "s1", tabs: ["x1"], name: "Reviewer", at: 0 };
+  const before = [{ id: "s1", tabs: [{ id: "x1" }] }];
+  const after = [{ id: "s1", tabs: [{ id: "x1" }, { id: "x2" }] }];
+  const panes = [{ pane: "p1", tab: "x1", terminal: "t1" }, { pane: "p2", tab: "x2", terminal: "t2" }];
+  assert.equal(newHirePane(before, panes, pending), null);
+  assert.equal(newHirePane(after, panes, pending), "p2");
+  assert.equal(newHirePane(after, [{ pane: "m", tab: "x2", terminal: null }], pending), null);
+  assert.equal(newHirePane(after, panes, { ...pending, space: "nope" }), null);
+}

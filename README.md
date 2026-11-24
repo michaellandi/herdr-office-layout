@@ -66,7 +66,7 @@ A card lists its agent's helpers (name, command, status, how long). Click one to
 
 - The header counts desks, need you, working, done, idle and unsure; click a count to filter the floor. The space button opens a list of spaces with their shortcuts. The punch-clock chip is how today has been spent (work, waiting, idle, done) since the layout was shown.
 - The rail has the filter (name, program, tab, space, status, branch or directory name), **+ Hire**, **Standup**, the current notice, and the desk count.
-- **+ Hire** starts a new tab: a plain **Terminal** (so you pick the directory), or any installed agent. An optional tab name field names it. The agent list is cached, so the dialog opens at once.
+- **+ Hire** starts a new tab: a plain **Terminal** (so you pick the directory), or any installed agent. Optional fields name the tab and the agent (the agent name is set on its pane once the tab appears, as the card's Rename would). The agent list is cached, so the dialog opens at once.
 - The boundary between the floor and the panes below can be dragged.
 
 ## Answering for you

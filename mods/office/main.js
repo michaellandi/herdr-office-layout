@@ -1,5 +1,5 @@
 import { View, div } from "gpui-kit";
-import { K } from "./scale.js";
+import { K, setScale } from "./scale.js";
 import { InputState } from "gpui-base";
 import { agents, spaces, panes, terminals, demoOn, DEMO_READS } from "./source.js";
 import {
@@ -527,7 +527,7 @@ export default class Office extends View {
     const x = e?.position?.x;
     if (!Number.isFinite(x)) return;
     // The pointer moves in real pixels; the lounge width is in unscaled units.
-    const w = Math.round(this.drag.w + (x - this.drag.x) / K);
+    const w = Math.round(this.drag.w + (x - this.drag.x) / (this.scaleNow || K));
     if (w !== this.loungeW) {
       this.loungeW = w;
       this.dragged = true;
@@ -968,6 +968,8 @@ export default class Office extends View {
   render() {
     // Padding under the panes, as wide as the gaps beside them.
     if (this.role === "foot") return div().size_full().bg("#0e131a");
+    // Only the floor shrinks to fit; every other view is drawn at K.
+    if (this.role !== "floor") setScale(K);
     if (this.role === "header") return drawHeader(this);
     if (this.role === "rail") return drawRail(this);
     if (this.role === "pane") return drawPane(this);

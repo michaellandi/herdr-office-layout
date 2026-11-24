@@ -10,12 +10,12 @@
 
 import { fnv } from "./text.js";
 
-export const ROUND_MS = 36000;
+export const ROUND_MS = 60000;
 // Out on the errand for this long, from the start of a round (the walk there
 // and back is drawn by draw.js; this is the time they are "away").
-export const AWAY_MS = 15000;
+export const AWAY_MS = 18000;
 // About one round in this many a person runs an errand.
-export const ERRAND_ODDS = 3;
+export const ERRAND_ODDS = 4;
 
 export const ERRANDS = ["shelf", "coffee", "visit"];
 const CARRY = { shelf: "book", coffee: "coffee", visit: null };

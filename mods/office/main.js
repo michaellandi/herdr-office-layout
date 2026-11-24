@@ -467,16 +467,23 @@ export default class Office extends View {
     if (!press) return;
     const x = e?.position?.x;
     const y = e?.position?.y;
-    if (!this.deskDrag && Math.hypot((x ?? 0) - press.x, (y ?? 0) - press.y) < 6) return;
-    const lx = (e?.local_position?.x ?? 0) / K;
-    const ly = (e?.local_position?.y ?? 0) / K;
-    let over = null;
-    const rug = this.scene && this.scene.rugs.find((r) => r.id === press.space);
-    if (rug) {
-      const hit = rug.desks.find((d) => lx >= d.x && lx < d.x + d.w && ly >= d.y && ly < d.y + d.h);
-      over = hit ? hit.address : null;
-    }
-    this.deskDrag = { address: press.address, space: press.space, x: lx, y: ly, over, outside: !rug || (!over && !(rug && lx >= rug.x && lx < rug.x + rug.w && ly >= rug.y && ly < rug.y + rug.h)) };
+    // Only the start of a drag is decided here; which desk it is over comes
+    // from the desks themselves (overDesk), so there is no pointer math to
+    // get wrong under the office's scale.
+    if (this.deskDrag) return;
+    if (Math.hypot((x ?? 0) - press.x, (y ?? 0) - press.y) < 10) return;
+    // Kept so a drag that leaves the floor can put everything back.
+    this.deskDrag = { address: press.address, space: press.space, before: this.seats };
+    cx.notify();
+  }
+
+  // Live reorder: passing over another desk in the same space moves the
+  // dragged desk into its seat right away, and the desks in between slide
+  // over. The layout itself shows where it will land.
+  overDesk(address, space, on, cx) {
+    const drag = this.deskDrag;
+    if (!drag || !on || space !== drag.space || address === drag.address) return;
+    this.seats = moveSeat(this.seats, drag.space, drag.address, address);
     cx.notify();
   }
 
@@ -486,15 +493,13 @@ export default class Office extends View {
     if (!drag) return;
     this.deskDrag = null;
     this.dragClick = true;
-    if (drag.over && drag.over !== drag.address) {
-      this.seats = moveSeat(this.seats, drag.space, drag.address, drag.over);
-      writeJson(SEAT_STORE, this.seats);
-    }
+    writeJson(SEAT_STORE, this.seats);
     if (cx) cx.notify();
   }
 
   cancelDeskDrag(cx) {
     if (!this.deskPress && !this.deskDrag) return;
+    if (this.deskDrag && this.deskDrag.before) this.seats = this.deskDrag.before;
     this.deskPress = null;
     this.deskDrag = null;
     if (cx) cx.notify();
@@ -502,6 +507,8 @@ export default class Office extends View {
 
   // The release at the end of a drag is not also a click.
   consumeDragClick() {
+    // A click means the button came back up: no press is pending any more.
+    this.deskPress = null;
     if (!this.dragClick) return false;
     this.dragClick = false;
     return true;

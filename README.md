@@ -4,7 +4,7 @@
 
 A [Herdr](https://herdr.dev) layout that draws your agents as blob people in one open-plan office. Working agents sit behind their desk and type. Idle and finished ones go to the lounge, where they nap, drink coffee, read, check their phone and make small talk. Someone who needs you walks to the front of the room, raises a hand and says what they are stuck on. Helpers an agent starts with `hc run` stand in front of its desk. Click anyone for their card.
 
-This is a native GUI port of [Michael Landi's herdr-office](https://github.com/michaellandi/herdr-office) TUI plugin. The floor is a Herdr mod (QuickJS + GPUI), not a terminal pane and not a web view.
+This is the native GUI version of the [herdr-office](https://github.com/michaellandi/herdr-office) TUI plugin. The floor is a Herdr mod (QuickJS + GPUI), not a terminal pane and not a web view.
 
 ![The office floor: desks, the lounge, a helper, and an agent who needs you](docs/floor.png)
 
@@ -135,7 +135,7 @@ node --test scripts/check-ask.js
 
 ## Credits
 
-The office, the status rules, the punch clock, the dirt counts, the context gauge, the notices, the approval reader and the process detection are ported from [herdr-office](https://github.com/michaellandi/herdr-office) by Michael Landi. That plugin is MIT; this layout keeps the same license. `mods/office-peek` is a clone of Herdr's own `peek` mod.
+The office, the status rules, the punch clock, the dirt counts, the context gauge, the notices, the approval reader and the process detection are ported from [herdr-office](https://github.com/michaellandi/herdr-office), which is MIT like this layout. `mods/office-peek` is a clone of Herdr's own `peek` mod.
 
 The blob cast (bow and mug, beanie, cat ears and glasses, headphones, sprout, lop ears, antenna) is new art for the GUI. Body color is identity; status is on the name tag.
 

@@ -120,12 +120,25 @@ A cursor-menu walk is recomputed off a fresh read right before sending, and noth
 
 Nothing needs configuring for helpers: the office reads Herdr's own `terminals()` and each one's `parent`. Herdr's agent skill (`hc --skill`) already tells agents to start helpers with `hc run --bg --name <name>`. If your agents open new tabs for side work instead, a line in your agent instructions such as "start helpers with `hc run --bg --name <short-name>`, never a new tab" keeps them at the right desk and labelled.
 
+## Permissions: hiring and talking
+
+An agent's card has a **permissions** section. **Hire** (off, or helpers up to a number) says whether it may start helper agents; **Talk** (off, family, space, anyone) says whom it may message with `hc send`. Both are off by default. They are saved as labels on the agent's terminal (`office.hire`, `office.hire_max`, `office.talk`), which the agent can read with `hc get $HC_TERMINAL_ID`. Agents allowed to hire show `+` after their name; allowed to talk, `⇄`.
+
+Herdr has no permission system for `hc run` or `hc send`, so these switches cannot block anything by themselves, and the card says so. What the office does:
+
+- **Tells the agent.** With `send` on, changing a switch types a one-line `<hc from="office">` notice into that agent saying what it may now do. For a standing rule, add to your agent instructions: "Before starting a helper with `hc run` or messaging another agent with `hc send`, read your `office.*` labels with `hc get $HC_TERMINAL_ID` and stay within them."
+- **Watches hiring.** A helper started by an agent that may not hire, or over its limit, gets a red ring and a "not allowed" tag; its card offers **Allow this one** or **End it**. With the floor prop `"enforce": "end"`, such helpers are stopped and removed at once instead.
+- **Cannot watch talking.** hc does not publish messages, so the office shows who may talk, not who did.
+
+The plan behind this, including blocking through each agent CLI's own tool permissions and a possible Herdr-side gate, is in [docs/plans/agent-hire-and-talk.md](docs/plans/agent-hire-and-talk.md).
+
 ## Settings
 
 | Prop | Where | Default | Effect |
 | --- | --- | --- | --- |
 | `send` | floor block, `layouts/office.json` | `false` | `true` lets Y / N / always, the written answer, and standup type into agents |
 | `demo` | floor block | `false` | `true` draws a made-up floor (see below) |
+| `enforce` | floor block | `"show"` | `"end"` stops and removes helpers started against their parent's permissions, instead of flagging them |
 
 Identity, home desks, lounge seats and width, the punch clock and "how long in this status" are kept in the mod's local storage.
 

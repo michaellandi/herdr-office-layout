@@ -13,6 +13,7 @@ import { screenRow, FRAME_MS, SCREEN_W, starRow, STAR_ROWS, STAR_MS } from "./sc
 import { chatLine, pickScript, oneConversation } from "./chatter.js";
 import { activityOf, activityProp, deskProps, deskProp } from "./props.js";
 import { castByIndex, castIndex, CAST } from "./identity.js";
+import { HIRE, TALK, TALK_WORDS, MAX_LIMIT, inForce } from "./permissions.js";
 import { withShells, personName } from "./people.js";
 
 const castBody = (id) => CAST.find((c) => c.id === id)?.body || "#c8cdd8";
@@ -193,12 +194,19 @@ function bubble(person) {
 // the status is still there at a glance without a separate label.
 const FOCUS = "#e0a15a";
 
-function nameTag(person, selected) {
+// A small mark after the name for what the agent may do: + hire, ⇄ talk.
+function permMarks(view, address) {
+  if (!view || typeof view.permsOf !== "function") return "";
+  const p = view.permsOf(address);
+  return `${p.hire !== "off" ? " +" : ""}${p.talk !== "off" ? " ⇄" : ""}`;
+}
+
+function nameTag(person, selected, view) {
   const st = statusOf(person.status);
   return div().px(8).h(18).flex().items_center().rounded(9).bg(person.focused ? "#3a2c18" : selected ? "#2a3344" : "#141a24")
     .border(person.focused ? 2 : 1).border_color(person.focused ? FOCUS : st.fg)
     .text_size(11).font_weight(700).text_color(selected ? C.ink : C.soft)
-    .child(truncate(person.name, 16));
+    .child(truncate(person.name, 16) + permMarks(view, person.address));
 }
 
 function wavingArm(person, id) {
@@ -256,7 +264,7 @@ function personToken(person, spot, model, view) {
     // Just the name off the desk: the tab name is already under their desk
     // (deskArt), and seated people have both there instead.
     .when(!seated, (el) => el
-      .child(nameTag(person, model.selected?.address === person.address)));
+      .child(nameTag(person, model.selected?.address === person.address, view)));
   // Lounge spots are measured up from the floor's bottom. "bottom" cannot be
   // animated, so the token sits on the bottom edge and is lifted by a
   // relative top offset, which can.
@@ -391,7 +399,12 @@ function helperBlob(helper, i, view, more = 0) {
       .child(div().px(3).rounded(4).bg("#10141bcc").font_family("Geist Mono").text_size(8).font_weight(700)
         .text_color(busy ? statusOf("working").fg : st === "blocked" ? statusOf("blocked").fg : C.dim).whitespace_nowrap()
         .child(truncate(label, more > 0 ? 6 : 10) + (more > 0 ? ` +${more}` : "")))))
-    .when(st === "blocked", (el) => el.child(div().absolute().top(-12).left(11).text_size(12).font_weight(800).text_color(statusOf("blocked").fg).child("!"))));
+    .when(st === "blocked", (el) => el.child(div().absolute().top(-12).left(11).text_size(12).font_weight(800).text_color(statusOf("blocked").fg).child("!")))
+    // Started against its parent's permissions: a red ring and a tag.
+    .when(!!helper.notAllowed, (el) => el
+      .child(div().absolute().left(-3).top(-3).w(36).h(40).rounded(18).border(2).border_color("#f06a6a"))
+      .child(div().absolute().top(-14).left(-10).w(50).flex().justify_center()
+        .child(div().px(3).rounded(4).bg("#3a1a1a").text_size(8).font_weight(800).text_color("#ffb4b4").child("not allowed")))));
 }
 
 
@@ -447,7 +460,7 @@ function deskArt(desk, person, view, helpers = [], space = null) {
       i === HELPERS_SHOWN - 1 ? Math.max(0, helpers.length - HELPERS_SHOWN) : 0)))
     // Name and tab at the bottom of the (taller) desk card.
     .child(v_flex().absolute().left(0).top(93).w(164).items_center().pb(4)
-      .child(nameTag(person, false))
+      .child(nameTag(person, false, view))
       .when(!!person.tabName, (row) => row.child(div().text_size(9).text_color(C.dim).child(truncate(person.tabName, 20)))));
 }
 
@@ -497,6 +510,11 @@ function helperCard(parent, h, model, view) {
     .child(line("status", `${helperWord(h)} for ${formatDuration(h.statusMs) || "0s"}`))
     .child(line("program", h.programName || "—"))
     .child(line("running", h.command || "—"))
+    .when(!!h.notAllowed, (el) => el.child(v_flex().gap(4).mt(2).p(6).rounded(6).bg("#3a1a1a").border(1).border_color("#f06a6a")
+      .child(div().text_size(11).font_weight(700).text_color("#ffb4b4").child(`Started against the rules: ${h.notAllowed}.`))
+      .child(h_flex().gap(6)
+        .child(wideKey(`allow-${id}`, "Allow this one", "#8ee0a8", (cx) => view.allowHelper(h.address, cx)))
+        .child(wideKey(`deny-${id}`, "End it", "#f0a0a0", (cx) => view.endHelper(h.address, cx))))))
     .when(h.status === "blocked", (el) => el.child(askBlock(h, model, view, id)))
     .child(h_flex().mt(4).gap(6)
       .child(wideKey(`peek-${id}`, "Peek at terminal", C.soft, () => view.peekHelper(h.address)))
@@ -533,6 +551,7 @@ function detailCard(model, view) {
     .when(!!shift, (el) => el.child(line("clock", `${formatDuration(shift.onShift)} on shift`)))
     .child(renameRow("tab", person.tabName || "—", `rename-${id}`, () => view.renameTab(person.address)))
     .child(lookRow(person, view))
+    .child(permsBlock(person, model, view, id))
     .child(line("branch", person.branch || "—"))
     .child(line("changes", dirtWords(person.dirt) || "not read yet"))
     .child(line("context", headWords(person.head) || "not read yet"))
@@ -585,6 +604,43 @@ function askBlock(person, model, view, id) {
     // The keys each button sends stay visible, just out of the buttons.
     ? `press Y or N · Y sends ${keyWords(choice.approve)} · N sends ${keyWords(choice.deny)}`
     : `Y ${keyWords(choice.approve)} · N ${keyWords(choice.deny)} · sending is off, buttons focus only`));
+}
+
+// A row of choices, the current one filled.
+function choices(id, options, current, label, pick) {
+  return h_flex().gap(3).flex_wrap().children(options.map((opt) => {
+    const on = opt === current;
+    return stop(div().id(`${id}-${opt}`).px(6).h(18).flex().items_center().rounded(4).cursor_pointer()
+      .bg(on ? "#2f6d4f" : "#1c2433").border(1).border_color(on ? "#8ee0a8" : C.line)
+      .text_size(10).font_weight(on ? 700 : 500).text_color(on ? "#e9fff3" : C.soft)
+      .hover((s2) => s2.bg(on ? "#2f6d4f" : "#2a3344"))
+      .on_click((_e, cx) => { cx.stop_propagation(); pick(opt, cx); })
+      .child(label(opt)));
+  }));
+}
+
+// What this agent may do: hire helpers (and how many), talk to whom. Saved
+// as labels on its terminal; the last line says what is actually in force,
+// which is "asked" and "watched", never "blocked" (Herdr has no gate).
+function permsBlock(person, model, view, id) {
+  const p = view.permsOf(person.address);
+  const hireWord = { off: "Off", helpers: "Helpers" };
+  const talkWord = { off: "Off", family: "Family", space: "Space", all: "Anyone" };
+  return v_flex().gap(5).mt(4).pt(6).border_t(1).border_color(C.line)
+    .child(div().text_size(10).font_weight(700).text_color(C.dim).child("permissions"))
+    .child(h_flex().gap(8).items_center()
+      .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child("hire"))
+      .child(choices(`hire-${id}`, HIRE, p.hire, (o) => hireWord[o], (o, cx) => view.setPerm(person.address, { hire: o }, cx)))
+      .when(p.hire !== "off", (el) => el.child(h_flex().gap(3).items_center()
+        .child(stop(div().id(`max-dn-${id}`).px(5).h(18).flex().items_center().rounded(4).bg("#1c2433").text_size(11).text_color(C.soft).cursor_pointer()
+          .on_click((_e, cx) => { cx.stop_propagation(); view.setPerm(person.address, { max: Math.max(1, p.max - 1) }, cx); }).child("−")))
+        .child(div().text_size(11).font_weight(700).text_color(C.ink).child(`${p.max}`))
+        .child(stop(div().id(`max-up-${id}`).px(5).h(18).flex().items_center().rounded(4).bg("#1c2433").text_size(11).text_color(C.soft).cursor_pointer()
+          .on_click((_e, cx) => { cx.stop_propagation(); view.setPerm(person.address, { max: Math.min(MAX_LIMIT, p.max + 1) }, cx); }).child("+"))))))
+    .child(h_flex().gap(8).items_center()
+      .child(div().w(64).flex_none().text_size(11).text_color(C.dim).child("talk"))
+      .child(choices(`talk-${id}`, TALK, p.talk, (o) => talkWord[o], (o, cx) => view.setPerm(person.address, { talk: o }, cx))))
+    .child(div().text_size(9).text_color(C.dim).child(`${TALK_WORDS[p.talk]}. ${inForce(p, model.enforce)}`));
 }
 
 // Pick a look: the seven blobs, the current one ringed. Clicking one gives it

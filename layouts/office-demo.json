@@ -75,7 +75,8 @@
                 "mod": "office",
                 "props": {
                   "send": false,
-                  "demo": true
+                  "demo": true,
+                  "enforce": "show"
                 }
               }
             },

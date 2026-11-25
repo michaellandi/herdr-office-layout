@@ -251,7 +251,11 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
   // in the lounge are placed up from the bottom (so the measured height never
   // pushes them off the floor), so a spot by the top furniture is converted
   // with the world's height: the pane's, or the content's if taller.
-  const fromTop = (y) => Math.max(bandTop - 40, Math.round(worldH - y - PERSON_H));
+  // Spots near the top furniture are converted from the top, but never lower
+  // than one person's height above the couch sitters (on a short lounge they
+  // would land on their heads); then they stand in front of the furniture.
+  const aboveCouch = couchBottom + 2 + 62;
+  const fromTop = (y) => Math.max(aboveCouch, bandTop - 40, Math.round(worldH - y - PERSON_H));
   // Beside the coffee table, not on it: the table spans the machine plus a
   // few px either side, and a body is ~58 wide in the middle of its 108 box.
   idleSpots.push({ x: coffee.x + coffee.w - 14, bottom: fromTop(coffee.y + 28), kind: "coffee" });
@@ -360,10 +364,13 @@ export function layoutFloor({ width, height, groups, loungeW: wanted, loungeSeat
     }
     where.set(person.address, spot);
     placed.push(spot);
+    // More loungers than spots (a small lounge): the extras stand a row up
+    // and half a step over, like a crowd, instead of exactly on someone.
+    const lapX = home.lap ? Math.min(maxX, Math.max(minX, spot.x + (home.lap % 2 ? 34 : -34))) : spot.x;
     spots[person.address] = {
-      x: spot.x,
-      y: (spot.y ?? 0) + home.lap * 18,
-      bottom: spot.bottom == null ? null : spot.bottom + home.lap * 18,
+      x: lapX,
+      y: (spot.y ?? 0) + home.lap * 62,
+      bottom: spot.bottom == null ? null : spot.bottom + home.lap * 62,
       pose: person.status === "done" ? "sit" : "doze",
       where: "lounge",
       seat: away ? "errand" : home.spot.kind,

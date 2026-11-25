@@ -667,7 +667,7 @@ export function drawFloor(model, view) {
     .on_mouse_up("left", (_e, cx) => view.dropDesk(cx))
     .on_hover((on, cx) => { if (!on) view.cancelDeskDrag(cx); })
     .when(!!drag, (el) => el.cursor_grabbing())
-    .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12)).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
+    .child(div().absolute().left(scene.lounge.x).top(scene.lounge.y).w(scene.lounge.w).when(scene.fits, (el) => el.bottom(12 + (scene.lift || 0))).when(!scene.fits, (el) => el.h(scene.lounge.h)).rounded(16).bg(C.lounge).border(1).border_color(C.loungeEdge))
     .child(div().absolute().left(scene.lounge.x + 12).top(scene.lounge.y + 8).text_size(10).font_weight(700).text_color(C.dim).child("LOUNGE"))
     // The coffee machine stands on a small table.
     .child(div().absolute().left(scene.coffee.x - 6).top(scene.coffee.y + scene.coffee.h - 6).w(scene.coffee.w + 12).h(7).rounded(2).bg(C.desk))
@@ -685,11 +685,11 @@ export function drawFloor(model, view) {
     // The couch is drawn from shapes (same colors as couch.svg) so it can be
     // as wide as the lounge with one cushion under each seat: the svg keeps
     // its shape and its two cushions, so wider seats missed them.
-    .child(div().absolute().left(scene.couch.x + 8).bottom(COUCH_BOTTOM + 22).w(scene.couch.w - 16).h(36).rounded(12).bg("#4a4358"))
-    .child(div().absolute().left(scene.couch.x + 4).bottom(COUCH_BOTTOM + 10).w(scene.couch.w - 8).h(28).rounded(10).bg("#5c546c"))
-    .children((scene.couchSeats || []).map((c) => div().absolute().left(c - 28).bottom(COUCH_BOTTOM + 16).w(56).h(18).rounded(6).bg("#6a6280")))
-    .child(div().absolute().left(scene.couch.x + 2).bottom(COUCH_BOTTOM + 10).w(18).h(30).rounded(8).bg("#3e384c"))
-    .child(div().absolute().left(scene.couch.x + scene.couch.w - 20).bottom(COUCH_BOTTOM + 10).w(18).h(30).rounded(8).bg("#3e384c"));
+    .child(div().absolute().left(scene.couch.x + 8).bottom(scene.couch.bottom + 22).w(scene.couch.w - 16).h(36).rounded(12).bg("#4a4358"))
+    .child(div().absolute().left(scene.couch.x + 4).bottom(scene.couch.bottom + 10).w(scene.couch.w - 8).h(28).rounded(10).bg("#5c546c"))
+    .children((scene.couchSeats || []).map((c) => div().absolute().left(c - 28).bottom(scene.couch.bottom + 16).w(56).h(18).rounded(6).bg("#6a6280")))
+    .child(div().absolute().left(scene.couch.x + 2).bottom(scene.couch.bottom + 10).w(18).h(30).rounded(8).bg("#3e384c"))
+    .child(div().absolute().left(scene.couch.x + scene.couch.w - 20).bottom(scene.couch.bottom + 10).w(18).h(30).rounded(8).bg("#3e384c"));
 
   for (const rug of scene.rugs) {
     const tint = rug.tint || { fill: "#222a38", edge: "#3c4a60" };

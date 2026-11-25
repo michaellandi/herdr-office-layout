@@ -203,6 +203,7 @@ export default class Office extends View {
     const height = Math.round((size?.height || 0) / zoom);
     if (!width || !height || (width === this.width && height === this.height)) return;
     this.width = width;
+    this.zoom = zoom;
     this.height = height;
     cx.notify();
   }

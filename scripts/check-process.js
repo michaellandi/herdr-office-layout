@@ -143,6 +143,18 @@ console.log("helpers ok");
       assert.ok(Math.abs(ps[i].x - ps[j].x) >= 60 || Math.abs(ps[i].bottom - ps[j].bottom) >= 56, `short lounge, no stacking: ${six[i]} ${six[j]}`);
     }
   }
+  // Desks make the floor scroll, the lounge is lifted to the visible bottom,
+  // and six loungers still do not land on each other.
+  {
+    const desks = Array.from({ length: 8 }, (_, i) => ({ address: `w${i}`, status: "working" }));
+    const lounge = Array.from({ length: 6 }, (_, i) => ({ address: `z${i}`, status: "idle" }));
+    const sc = layoutFloor({ width: 1100, height: 300, groups: [{ id: "s", name: "s", people: [...desks, ...lounge] }], loungeW: 300, loungeSeats: new Map() });
+    assert.ok(sc.lift > 0, "the desks overflow, so the lounge is lifted");
+    const ps = lounge.map((p) => sc.spots[p.address]);
+    for (let i = 0; i < ps.length; i += 1) for (let j = i + 1; j < ps.length; j += 1) {
+      assert.ok(Math.abs(ps[i].x - ps[j].x) >= 60 || Math.abs(ps[i].bottom - ps[j].bottom) >= 56, `lifted lounge, no stacking: z${i} z${j} ${JSON.stringify([ps[i], ps[j]])}`);
+    }
+  }
   // Visits stay inside the lounge.
   {
     const lw = 220;

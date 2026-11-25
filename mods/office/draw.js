@@ -636,7 +636,12 @@ export function drawFloor(model, view) {
   // The largest scale that fits: a smaller scale can fit more desks per row
   // and need fewer rows, so "shrink by the overflow" overshoots. A short
   // binary search over [MIN_K, K] finds the biggest one that fits.
-  const fits = (k) => { const sc = lay(k); return { sc, ok: sc.contentH * k <= view.height + 1 }; };
+  // "Fits" is judged at the app's zoom 1: view.height is in zoomed points,
+  // so comparing against it would shrink the office by exactly the zoom and
+  // the app's zoom would do nothing. Zooming in makes it bigger (and it may
+  // scroll); only a pane too short at zoom 1 makes it shrink.
+  const room = view.height * (view.zoom || 1);
+  const fits = (k) => { const sc = lay(k); return { sc, ok: sc.contentH * k <= room + 1 }; };
   let k = K;
   let best = fits(K);
   if (!best.ok) {

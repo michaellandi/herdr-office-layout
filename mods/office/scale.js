@@ -14,7 +14,9 @@ import { h_flex, v_flex } from "gpui-base";
 // The normal size. The floor can shrink below it to fit a short pane
 // (setScale, from drawFloor); every other view renders at K.
 export const K = 1.15;
-export const MIN_K = 0.7;
+// Never smaller than this: below it, text on the floor gets too small next to
+// the terminal, so a pane that is shorter still scrolls instead.
+export const MIN_K = 1.0;
 
 // The scale in force right now, shared across reloads of this module (the
 // patched builders read it on every call).

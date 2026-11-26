@@ -74,7 +74,8 @@
               "content": {
                 "mod": "office",
                 "props": {
-                  "send": false
+                  "send": false,
+                  "enforce": "show"
                 }
               }
             },

@@ -14,6 +14,7 @@ import { buildPeople, groupsOf, cwdKey, withShells, helpersByParent, newHirePane
 import { dirtArgs, countDirt } from "./dirt.js";
 import { parseGauge } from "./head.js";
 import { readAsk } from "./ask.js";
+import { LABEL, readPerms, violations, noticeText } from "./permissions.js";
 import { PS_ARGS, parseProcessTable, paneProcesses } from "./ps.js";
 import { runningCommand } from "./process.js";
 import { notices } from "./notices.js";
@@ -153,6 +154,9 @@ export default class Office extends View {
     // Demo floor: made-up people, nothing read or sent (see source.js).
     setShared("office.demo", given.demo === true);
     setShared("office.allowSend", given.send === true && given.demo !== true);
+    // What happens to a helper started against its parent's permissions:
+    // "show" (flag it, the default) or "end" (stop and remove it).
+    setShared("office.enforce", given.enforce === "end" ? "end" : "show");
     if (given.demo === true) {
       for (const [address, read] of Object.entries(DEMO_READS.heads)) this.heads.set(address, { gauge: read.gauge, askFp: read.ask ? read.ask.fp : null, ask: read.ask || null });
       for (const [address, label] of Object.entries(DEMO_READS.commands)) this.commands.set(address, label);
@@ -274,6 +278,7 @@ export default class Office extends View {
       shift,
       allowSend: shared("office.allowSend") === true,
       helpers: this.helperMap(),
+      enforce: shared("office.enforce") === "end" ? "end" : "show",
     };
   }
 
@@ -292,6 +297,7 @@ export default class Office extends View {
     if (this.ticks % 15 === 0) this.persist();
     this.publish();
     this.readBlocked(cx);
+    this.watchHelpers(cx);
     if (this.ticks % 2 === 0) this.readCommands(cx);
     if (this.ticks % 15 === 0) {
       cx.spawn(async (cx2) => {
@@ -597,6 +603,7 @@ export default class Office extends View {
           said: asking ? asking.said : [],
           choice: asking ? asking.choice : null,
           helper: true,
+          notAllowed: this.violations ? this.violations.get(h.address) || null : null,
         };
       }));
     }
@@ -822,6 +829,89 @@ export default class Office extends View {
     this.ensure();
     writeJson(CAST_STORE, this.casts);
     if (cx) cx.notify();
+  }
+
+  // An agent's permissions: its labels, with a change the person just made
+  // shown at once while hc label is on its way.
+  permsOf(address) {
+    const t = terminals().find((x) => x.address === address);
+    const pending = this.permPending && this.permPending.get(address);
+    return { ...readPerms(t && t.labels), ...(pending || {}) };
+  }
+
+  // The card's Hire / Talk switches. Writes the labels, then (with sending
+  // on, and never into an agent that is waiting on the person) tells the
+  // agent in one line what changed.
+  setPerm(address, change, cx) {
+    const before = this.permsOf(address);
+    const after = { ...before, ...change };
+    if (!this.permPending) this.permPending = new Map();
+    this.permPending.set(address, after);
+    if (cx) cx.notify();
+    if (demoOn() || !cx) return;
+    cx.spawn(async (cx2) => {
+      const args = [];
+      if (after.hire !== before.hire) args.push(`${LABEL.hire}=${after.hire}`);
+      if (after.max !== before.max) args.push(`${LABEL.max}=${after.max}`);
+      if (after.talk !== before.talk) args.push(`${LABEL.talk}=${after.talk}`);
+      let ok = true;
+      if (args.length) {
+        try {
+          const r = await hc(["label", String(address), ...args]);
+          ok = !!r && r.code === 0;
+        } catch {
+          ok = false;
+        }
+      }
+      if (!ok) {
+        this.permPending.delete(address);
+        this.note = "Could not save that permission.";
+        cx2.notify();
+        return;
+      }
+      const text = noticeText(before, after);
+      const who = this.personOf(address);
+      if (text && shared("office.allowSend") === true && who && who.status !== "blocked") {
+        await deliver((a) => hc(a), address, text, true);
+        this.note = "Saved, and told the agent.";
+      } else {
+        this.note = text ? "Saved. Sending is off, so the agent was not told." : "Saved.";
+      }
+      // terminals() now carries the labels; drop the optimistic copy.
+      setTimeout(() => { if (this.permPending) this.permPending.delete(address); }, 4000);
+      cx2.notify();
+    });
+  }
+
+  // Keep a helper that was started against the rules.
+  allowHelper(address, cx) {
+    if (!this.violations) this.violations = new Map();
+    this.violations.delete(address);
+    if (cx) cx.notify();
+    if (demoOn() || !cx) return;
+    cx.spawn(async (cx2) => {
+      try { await hc(["label", String(address), `${LABEL.allowed}=1`]); } catch { /* next tick shows it again */ }
+      cx2.notify();
+    });
+  }
+
+  // Every tick: which helpers were started against their parent's
+  // permissions. With enforce "end", those are stopped and removed once.
+  watchHelpers(cx) {
+    if (checking() || demoOn()) return;
+    this.violations = violations(terminals());
+    if (shared("office.enforce") !== "end" || !this.violations.size) return;
+    if (!this.ended) this.ended = new Set();
+    for (const [address, reason] of this.violations) {
+      if (this.ended.has(address)) continue;
+      this.ended.add(address);
+      cx.spawn(async (cx2) => {
+        try { await hc(["kill", String(address)]); } catch { /* already gone */ }
+        try { await hc(["rm", String(address)]); } catch { /* already gone */ }
+        this.note = `Ended a helper: ${reason}.`;
+        cx2.notify();
+      });
+    }
   }
 
   // Herdr's own rename prompt, opened with the current name filled in (and

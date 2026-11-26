@@ -206,3 +206,23 @@ console.log("helpers ok");
   assert.equal(oneConversation([], [], 7), null);
   console.log("one conversation ok");
 }
+{
+  const { readPerms, violations, noticeText, inForce, LABEL } = await import("../mods/office/permissions.js");
+  assert.deepEqual(readPerms({}), { hire: "off", talk: "off", max: 2 }, "off by default");
+  assert.deepEqual(readPerms({ [LABEL.hire]: "helpers", [LABEL.max]: "9", [LABEL.talk]: "space" }), { hire: "helpers", talk: "space", max: 6 }, "max is capped");
+  assert.equal(readPerms({ [LABEL.hire]: "everything" }).hire, "off", "unknown values are off");
+  const T = (address, parent, labels = {}, created_ms = 0, state = "live") => ({ address, parent, labels, created_ms, state });
+  // Parent may not hire: its helper is flagged; a kept one is not.
+  let v = violations([T("p", null), T("h1", "p", {}, 1), T("h2", "p", { [LABEL.allowed]: "1" }, 2)]);
+  assert.equal(v.get("h1"), "its parent may not hire");
+  assert.equal(v.has("h2"), false, "a helper the person kept is not flagged");
+  // Parent may hire 2: the third (newest) is over the limit; finished ones don't count.
+  v = violations([T("p", null, { [LABEL.hire]: "helpers", [LABEL.max]: "2" }), T("a", "p", {}, 1), T("b", "p", {}, 2), T("c", "p", {}, 3), T("d", "p", {}, 0, "finished")]);
+  assert.deepEqual([...v.keys()], ["c"], "over the limit, newest first");
+  // Notices: only on a change, and they say what to do.
+  assert.equal(noticeText({ hire: "off", talk: "off", max: 2 }, { hire: "off", talk: "off", max: 2 }), null);
+  assert.ok(/up to 3 helper agents/.test(noticeText({ hire: "off", talk: "off", max: 3 }, { hire: "helpers", talk: "off", max: 3 })));
+  assert.ok(/no longer message/.test(noticeText({ hire: "off", talk: "all", max: 2 }, { hire: "off", talk: "off", max: 2 })));
+  assert.ok(!/block/i.test(inForce({ hire: "off", talk: "off", max: 2 }, "show")), "the card never claims a block");
+  console.log("permissions ok");
+}
